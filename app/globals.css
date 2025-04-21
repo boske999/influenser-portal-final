@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-rgb: 8, 8, 10;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background-color: rgb(var(--background-rgb));
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+}
+
+@layer components {
+  .input-field {
+    @apply w-full px-3 py-4 rounded-lg bg-inputBg border border-white/20 focus:outline-none text-textTertiary;
+  }
+
+  .primary-button {
+    @apply flex items-center justify-between px-8 py-3 rounded-full bg-white text-buttonText font-semibold;
+  }
+} 
+
+.image-100-cover{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.login-bg{
+  max-height: 100svh;
+}
+.big-item{
+  position: relative;
+}
+.big-answer-wrap{
+  position: absolute;
+  top: 10px;
+  right:10px;
+  display: flex;
+  flex-direction: column;
+  row-gap: 5px;
+}
+.status-badge{
+  width: 100%;
+  text-align: center;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.small-item{
+  position: relative;
+  padding-top:100px;
+}
