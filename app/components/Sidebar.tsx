@@ -6,7 +6,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '../context/AuthContext'
 import { useNotifications } from '../context/NotificationContext'
-import { supabase } from '../lib/supabase'
 
 const navigationItems = [
   { name: 'Dashboard', href: '/dashboard', icon: 'home' },
@@ -18,48 +17,9 @@ const navigationItems = [
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const { signOut, user, userMetadata, refreshUserMetadata } = useAuth()
+  const { signOut, user, userData } = useAuth()
   const { unreadCount } = useNotifications()
-  const [localUserName, setLocalUserName] = useState<string>('')
-  const [localUserAvatar, setLocalUserAvatar] = useState<string | null>(null)
   
-  // Efekat za dobavljanje korisničkih podataka kada se stranica osvežava
-  useEffect(() => {
-    const loadUserData = async () => {
-      // Ako već imamo metadata, koristimo ga
-      if (userMetadata?.full_name) {
-        setLocalUserName(userMetadata.full_name)
-        setLocalUserAvatar(userMetadata.avatar_url)
-        return
-      }
-      
-      // Ako imamo korisnika ali ne i metadata, osvežavamo podatke
-      if (user && !userMetadata) {
-        console.log("Sidebar: User exists but metadata missing, refreshing")
-        refreshUserMetadata()
-        
-        // Takođe direktno dobavljamo podatke iz baze
-        try {
-          const { data, error } = await supabase
-            .from('users')
-            .select('full_name, avatar_url')
-            .eq('id', user.id)
-            .single()
-          
-          if (!error && data) {
-            console.log("Sidebar: Direct fetch successful:", data)
-            setLocalUserName(data.full_name || '')
-            setLocalUserAvatar(data.avatar_url)
-          }
-        } catch (err) {
-          console.error("Sidebar: Failed to load user data:", err)
-        }
-      }
-    }
-    
-    loadUserData()
-  }, [user, userMetadata, refreshUserMetadata])
-
   const renderIcon = (icon: string) => {
     switch (icon) {
       case 'home':
@@ -103,10 +63,10 @@ export default function Sidebar() {
   }
 
   // Pripremamo ime za prikaz
-  const displayName = localUserName || userMetadata?.full_name || user?.email || 'User'
+  const displayName = userData?.full_name || user?.email || 'User'
   // Pripremamo inicijal za avatar
-  const avatarInitial = (localUserName || userMetadata?.full_name) 
-    ? (localUserName || userMetadata?.full_name || '').charAt(0).toUpperCase() 
+  const avatarInitial = userData?.full_name 
+    ? userData.full_name.charAt(0).toUpperCase() 
     : user?.email?.charAt(0).toUpperCase() || 'U'
 
   return (
@@ -154,9 +114,9 @@ export default function Sidebar() {
       <div className="mt-auto pt-6 border-t border-white/10">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gray-700 rounded-full overflow-hidden flex items-center justify-center text-white">
-            {(localUserAvatar || userMetadata?.avatar_url) ? (
+            {userData?.avatar_url ? (
               <Image 
-                src={localUserAvatar || userMetadata?.avatar_url || ''}
+                src={userData.avatar_url}
                 alt="User avatar"
                 width={40}
                 height={40}

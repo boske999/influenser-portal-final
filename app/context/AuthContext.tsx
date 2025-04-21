@@ -1,240 +1,214 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { Session, User, supabase, fetchUserData } from '../lib/supabase';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { Session, User, signInUser, signOutUser, fetchUserData, supabase } from '../lib/supabase';
 
+// User data from the users table
+type UserData = {
+  role: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+};
+
+// Type for AuthContext that will be available throughout the application
 type AuthContextType = {
   user: User | null;
   session: Session | null;
+  userData: UserData | null;
   isLoading: boolean;
-  userMetadata: {
-    full_name: string | null;
-    avatar_url: string | null;
-    role: string | null;
-  } | null;
   signIn: (email: string, password: string) => Promise<{ error: any | null }>;
   signOut: () => Promise<void>;
-  refreshUserMetadata: () => Promise<void>;
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  isUser: boolean;
+  refreshUserData: () => Promise<void>;
 };
 
+// Create initial context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Ključna konstanta koja upravlja redosledom učitavanja
-const AUTH_STATE = {
-  PENDING: 'PENDING',      // Provera sesije u toku
-  SESSION_LOADED: 'SESSION_LOADED',   // Sesija učitana, metapodaci još nisu
-  METADATA_LOADED: 'METADATA_LOADED', // Sve učitano
-  ERROR: 'ERROR'           // Greška u učitavanju
-};
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [userMetadata, setUserMetadata] = useState<AuthContextType['userMetadata']>(null);
-  const [authState, setAuthState] = useState(AUTH_STATE.PENDING);
   const router = useRouter();
+  const pathname = usePathname();
+  
+  console.log("AuthContext rendering, path:", pathname);
 
-  // Osigurava da se podaci uvek dobavljaju na isti način
-  const fetchUserMetadata = useCallback(async (userId: string): Promise<AuthContextType['userMetadata']> => {
-    if (!userId) {
-      console.log("AuthContext: Nema ID korisnika, preskačem dobavljanje metapodataka");
-      return null;
-    }
+  // Function to refresh user data from the database
+  const refreshUserData = async () => {
+    if (!user) return;
     
-    console.log("AuthContext: Dobavljanje metapodataka za korisnika ID:", userId);
-    const userData = await fetchUserData(userId);
-    
-    if (!userData) {
-      console.error("AuthContext: Neuspešno dobavljanje metapodataka");
-      return null;
-    }
-    
-    console.log("AuthContext: Uspešno dobavljeni metapodaci:", userData);
-    return userData;
-  }, []);
-
-  // Funkcija za osvežavanje metapodataka korisnika
-  const refreshUserMetadata = useCallback(async () => {
-    if (!user?.id) {
-      console.log("AuthContext: Nema ID korisnika za osvežavanje");
-      return;
-    }
-    
-    console.log("AuthContext: Osvežavanje metapodataka za korisnika ID:", user.id);
-    const metadata = await fetchUserMetadata(user.id);
-    
-    if (metadata) {
-      console.log("AuthContext: Postavljanje osveženih metapodataka");
-      setUserMetadata(metadata);
-      setAuthState(AUTH_STATE.METADATA_LOADED);
-    }
-  }, [user, fetchUserMetadata]);
-
-  // Glavna funkcija za inicijalizaciju autentikacije
-  const initializeAuth = useCallback(async () => {
+    console.log("Refreshing user data for:", user.id);
     try {
-      console.log("AuthContext: Inicijalizacija autentikacije");
+      const data = await fetchUserData(user.id);
+      console.log("User data refreshed:", data);
+      setUserData(data as UserData | null);
+    } catch (error) {
+      console.error("Error refreshing user data:", error);
+    }
+  };
+
+  // Function to initialize authentication - checks session and fetches user data
+  const initializeAuth = async () => {
+    try {
       setIsLoading(true);
-      setAuthState(AUTH_STATE.PENDING);
+      console.log("Initializing auth...");
       
-      // 1. Dobavljanje sesije - uvek prvi korak
-      console.log("AuthContext: Dobavljanje sesije");
+      // Get user session
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (error) {
-        console.error("AuthContext: Greška pri dobavljanju sesije:", error);
-        setAuthState(AUTH_STATE.ERROR);
+        console.error("Error getting session:", error.message);
+      }
+      
+      console.log("Session check completed:", { 
+        hasSession: !!session,
+        userId: session?.user?.id 
+      });
+      
+      if (!session) {
+        // If there's no session, clear user data
+        setUser(null);
+        setSession(null);
+        setUserData(null);
         setIsLoading(false);
         return;
       }
       
-      // 2. Ažuriranje stanja sa sesijom
-      if (session) {
-        console.log("AuthContext: Pronađena sesija, korisnik:", session.user.id);
-        setSession(session);
-        setUser(session.user);
-        setAuthState(AUTH_STATE.SESSION_LOADED);
-        
-        // 3. Dobavljanje metapodataka
-        console.log("AuthContext: Dobavljanje metapodataka za korisnika:", session.user.id);
-        const metadata = await fetchUserMetadata(session.user.id);
-        
-        if (metadata) {
-          console.log("AuthContext: Postavljanje metapodataka", metadata);
-          setUserMetadata(metadata);
-          setAuthState(AUTH_STATE.METADATA_LOADED);
-        } else {
-          console.warn("AuthContext: Nisu pronađeni metapodaci");
-        }
-      } else {
-        console.log("AuthContext: Nije pronađena sesija");
-        setUser(null);
-        setSession(null);
-        setUserMetadata(null);
-      }
+      // Update user data from session
+      setUser(session.user);
+      setSession(session);
+      
+      // Fetch user data from the database
+      const userData = await fetchUserData(session.user.id);
+      console.log("Retrieved user data:", userData);
+      setUserData(userData as UserData | null);
+      
     } catch (error) {
-      console.error("AuthContext: Izuzetak pri inicijalizaciji:", error);
-      setAuthState(AUTH_STATE.ERROR);
+      console.error("Error initializing authentication:", error);
     } finally {
-      console.log("AuthContext: Inicijalizacija završena");
       setIsLoading(false);
     }
-  }, [fetchUserMetadata]);
+  };
 
-  // Osluškivanje promene stanja autentikacije
+  // Load session on first render
   useEffect(() => {
-    // Postavljamo osvežavanje autentikacije pri svakom učitavanju stranice
     initializeAuth();
     
-    // Osluškivanje promene stanja autentikacije
+    // Listen for authentication state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        console.log("AuthContext: Promena stanja autentikacije, događaj:", event);
+      async (event: string, newSession: Session | null) => {
+        console.log("Auth state change event:", event);
         
-        if (event === 'SIGNED_IN') {
-          console.log("AuthContext: Korisnik se prijavio");
-          setSession(newSession);
-          setUser(newSession?.user || null);
-          setAuthState(AUTH_STATE.SESSION_LOADED);
-          
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          // If user signs in or token is refreshed, update user data
           if (newSession?.user) {
-            const metadata = await fetchUserMetadata(newSession.user.id);
-            if (metadata) {
-              setUserMetadata(metadata);
-              setAuthState(AUTH_STATE.METADATA_LOADED);
-            }
+            console.log("Auth state change: Signed in/token refreshed");
+            // Fetch user data
+            const userData = await fetchUserData(newSession.user.id);
+            console.log("Retrieved user data after auth change:", userData);
+            setUser(newSession.user);
+            setSession(newSession);
+            setUserData(userData as UserData | null);
           }
         } 
         else if (event === 'SIGNED_OUT') {
-          console.log("AuthContext: Korisnik se odjavio");
-          setSession(null);
+          // If user signs out, reset state
+          console.log("Auth state change: Signed out, clearing user data");
           setUser(null);
-          setUserMetadata(null);
-          setAuthState(AUTH_STATE.PENDING);
+          setSession(null);
+          setUserData(null);
         }
-        else if (event === 'TOKEN_REFRESHED') {
-          console.log("AuthContext: Token osvežen");
-          setSession(newSession);
-          setUser(newSession?.user || null);
-          
-          // Ovde nemamo još metapodatke, ali imamo sesiju
-          setAuthState(AUTH_STATE.SESSION_LOADED);
-          
-          // Dobavljamo metapodatke
-          if (newSession?.user) {
-            const metadata = await fetchUserMetadata(newSession.user.id);
-            if (metadata) {
-              setUserMetadata(metadata);
-              setAuthState(AUTH_STATE.METADATA_LOADED);
-            }
-          }
-        }
-        
-        setIsLoading(false);
       }
     );
     
-    // Čišćenje pretplate kada se komponenta demontira
+    // Clean up subscription when component unmounts
     return () => {
-      console.log("AuthContext: Čišćenje pretplate");
       subscription.unsubscribe();
     };
-  }, [initializeAuth, fetchUserMetadata]);
+  }, []);
 
-  // Funkcija za prijavu
+  // Sign-in function
   const signIn = async (email: string, password: string) => {
     try {
-      console.log("AuthContext: Prijava korisnika:", email);
-      const { data, error } = await supabase.auth.signInWithPassword({ 
-        email, 
-        password 
-      });
+      console.log("Attempting sign in for email:", email);
+      const { user, session, userData, error } = await signInUser(email, password);
       
       if (error) {
-        console.error("AuthContext: Greška pri prijavi:", error);
+        console.error("Sign in error:", error);
         return { error };
       }
       
-      // Uspešna prijava, preusmeravanje na dashboard
-      console.log("AuthContext: Uspešna prijava, preusmeravanje na dashboard");
-      router.push('/dashboard');
+      // Set user data on successful sign-in
+      console.log("Sign in successful:", { 
+        userId: user?.id,
+        role: userData?.role 
+      });
+      
+      setUser(user);
+      setSession(session);
+      setUserData(userData as UserData | null);
+      
+      // Let middleware handle the redirect
       return { error: null };
     } catch (error) {
-      console.error("AuthContext: Izuzetak pri prijavi:", error);
+      console.error("Exception during sign in:", error);
       return { error };
     }
   };
 
-  // Funkcija za odjavu
+  // Sign-out function
   const signOut = async () => {
     try {
-      console.log("AuthContext: Odjava korisnika");
-      await supabase.auth.signOut();
+      await signOutUser();
+      setUser(null);
+      setSession(null);
+      setUserData(null);
       router.push('/login');
     } catch (error) {
-      console.error("AuthContext: Greška pri odjavi:", error);
+      console.error("Error signing out:", error);
     }
   };
 
+  // Calculate helper boolean values for role checking
+  const isAuthenticated = !!user && !!session;
+  const isAdmin = isAuthenticated && userData?.role === 'admin';
+  const isUser = isAuthenticated && userData?.role !== 'admin';
+
+  console.log("Auth state:", { 
+    isAuthenticated, 
+    isAdmin, 
+    isUser,
+    role: userData?.role,
+    userId: user?.id
+  });
+
+  // Values available through context
   const value = {
     user,
     session,
+    userData,
     isLoading,
-    userMetadata,
     signIn,
     signOut,
-    refreshUserMetadata,
+    isAuthenticated,
+    isAdmin,
+    isUser,
+    refreshUserData
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
+// Hook for using auth context in components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth mora biti korišćen unutar AuthProvider-a');
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 }; 

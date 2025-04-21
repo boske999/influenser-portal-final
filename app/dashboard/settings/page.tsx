@@ -7,7 +7,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 
 export default function SettingsPage() {
-  const { user, userMetadata, refreshUserMetadata } = useAuth()
+  const { user, userData, refreshUserData } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
@@ -51,14 +51,14 @@ export default function SettingsPage() {
 
   useEffect(() => {
     // Reset state when user metadata changes
-    if (userMetadata) {
-      setFullName(userMetadata.full_name || '')
-      setAvatarUrl(userMetadata.avatar_url || '')
+    if (userData) {
+      setFullName(userData.full_name || '')
+      setAvatarUrl(userData.avatar_url || '')
     } else if (user) {
       // Fallback to fetching from the database
       fetchUserProfile()
     }
-  }, [user, userMetadata, fetchUserProfile])
+  }, [user, userData, fetchUserProfile])
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -142,7 +142,7 @@ export default function SettingsPage() {
       setSuccessMessage('Profile updated successfully')
       
       // Refresh user metadata in the AuthContext
-      await refreshUserMetadata()
+      await refreshUserData()
     } catch (error: any) {
       console.error('Profile update error:', error)
       setErrorMessage(error.message || 'Failed to update profile')

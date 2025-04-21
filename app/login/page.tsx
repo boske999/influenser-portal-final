@@ -13,9 +13,20 @@ export default function Login() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   
-  const { signIn } = useAuth()
+  const { signIn, isAuthenticated, isAdmin, userData } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Handle authenticated user redirects
+  useEffect(() => {
+    // If authenticated and the success message is shown, redirect to appropriate page
+    if (isAuthenticated && successMessage) {
+      const destination = userData?.role === 'admin' ? '/admin' : '/dashboard'
+      setTimeout(() => {
+        router.push(destination)
+      }, 1000)
+    }
+  }, [isAuthenticated, isAdmin, userData, successMessage, router])
 
   // Check for message in URL
   useEffect(() => {
@@ -39,12 +50,15 @@ export default function Login() {
     
     try {
       const { error } = await signIn(email, password)
+      
       if (error) {
-        setError(error.message)
+        setError(error.message || 'Invalid email or password')
+      } else {
+        setSuccessMessage('Login successful! Redirecting...')
+        // Client-side redirect will be handled by useEffect watching isAuthenticated
       }
     } catch (err) {
       setError('An unexpected error occurred')
-      console.error(err)
     } finally {
       setIsLoading(false)
     }

@@ -36,7 +36,7 @@ type Proposal = {
 }
 
 export default function Dashboard() {
-  const { user, isLoading, userMetadata, session, refreshUserMetadata } = useAuth()
+  const { user, isLoading, userData, session, refreshUserData } = useAuth()
   const router = useRouter()
   const [isAdmin, setIsAdmin] = useState(false)
   const [checkingRole, setCheckingRole] = useState(true)
@@ -50,149 +50,64 @@ export default function Dashboard() {
   // Add special effect for page refresh
   useEffect(() => {
     // Ako imamo korisnika, ali nemamo metadata, to je verovatno nakon refresh-a
-    if (user && !userMetadata) {
-      console.log("Dashboard: User exists but no metadata, refreshing data");
-      refreshUserMetadata();
+    if (user && !userData) {
+      refreshUserData();
     }
-  }, [user, userMetadata, refreshUserMetadata]);
+  }, [user, userData, refreshUserData]);
 
-  // Add some diagnostic logs for session
+  // Remove the 3-second timeout effect
   useEffect(() => {
-    console.log("Dashboard: Session details:", { 
-      hasUser: !!user, 
-      userId: user?.id,
-      hasMetadata: !!userMetadata,
-      metadataName: userMetadata?.full_name,
-      hasSession: !!session
-    })
-    
-    // Check if supabase client has a session
-    supabase.auth.getSession().then(({ data }) => {
-      console.log("Dashboard: Supabase session check:", {
-        hasSession: !!data.session,
-        sessionUserId: data.session?.user?.id
-      })
-      
-      // Print detailed user data
-      if (data.session?.user) {
-        console.log("--- DETALJNI PODACI O KORISNIKU ---");
-        console.log("User ID:", data.session.user.id);
-        console.log("User Email:", data.session.user.email);
-        console.log("User Phone:", data.session.user.phone);
-        console.log("User App Metadata:", data.session.user.app_metadata);
-        console.log("User Auth Metadata:", data.session.user.user_metadata);
-        console.log("Last sign in:", data.session.user.last_sign_in_at);
-        console.log("Created at:", data.session.user.created_at);
-        console.log("Updated at:", data.session.user.updated_at);
-        console.log("Authentication providers:", data.session.user.identities);
-        
-        // Also check the database
-        supabase
-          .from('users')
-          .select('*')
-          .eq('id', data.session.user.id)
-          .single()
-          .then(({ data: userData, error }) => {
-            if (error) {
-              console.error("Error fetching user data from database:", error);
-            } else {
-              console.log("--- PODACI IZ BAZE ---");
-              console.log(userData);
-              
-              // Ako nemamo userMetadata, postavimo podatke odmah
-              if (!userMetadata && userData) {
-                console.log("Dashboard: Setting user data directly from fetch");
-                setFullName(userData.full_name || '');
-                setIsAdmin(userData.role === 'admin');
-              }
-            }
-          });
-      }
-    })
-  }, [user, userMetadata, session])
-
-  // Add a timeout to prevent infinite loading
-  useEffect(() => {
-    console.log("Dashboard: Setting up timeout protection")
-    const timer = setTimeout(() => {
-      console.log('Dashboard: Loading timeout triggered after 3 seconds');
-      setTimeoutOccurred(true);
-      setCheckingRole(false);
-      setLoading(false);
-    }, 3000); // 3 seconds timeout
-
-    return () => clearTimeout(timer);
+    setTimeoutOccurred(false);
+    setCheckingRole(false);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    console.log("Dashboard: useEffect pokrenuto")
-    console.log("Dashboard: isLoading stanje:", isLoading)
-    console.log("Dashboard: user objekat:", user)
-    
     const checkUserRole = async () => {
       // Skip checks if timeout has already occurred
       if (timeoutOccurred) {
-        console.log("Dashboard: Timeout occurred, skipping role checks");
         setCheckingRole(false);
         setLoading(false);
         return;
       }
       
-      console.log("Dashboard: checkUserRole funkcija pokrenuta")
-      
       if (isLoading && !timeoutOccurred) {
-        console.log("Dashboard: Still loading auth status, waiting...")
         return;
       }
       
       if (!user) {
-        console.log("Dashboard: Korisnik nije prijavljen, preusmeravanje na /login")
         router.push('/login')
         return
       }
-
-      console.log("Dashboard: Korisnik je prijavljen, user ID:", user.id)
       
       try {
         setLoading(true); // Set to loading while fetching data
         
         // Try to get user data from metadata first if available
-        if (userMetadata) {
-          console.log("Dashboard: Using metadata from AuthContext:", userMetadata)
-          setIsAdmin(userMetadata.role === 'admin')
+        if (userData) {
+          setIsAdmin(userData.role === 'admin')
           
           // Set full name explicitly from metadata
-          if (userMetadata.full_name) {
-            console.log("Dashboard: Setting full name from metadata:", userMetadata.full_name)
-            setFullName(userMetadata.full_name)
-          } else {
-            console.log("Dashboard: No full name in metadata, will try database")
+          if (userData.full_name) {
+            setFullName(userData.full_name)
           }
         } else {
           // Fallback to fetching from Supabase directly
-          console.log("Dashboard: Pokušavam dobiti podatke o korisniku iz baze")
           const { data: userData, error: userError } = await supabase
             .from('users')
             .select('role, email, full_name')
             .eq('id', user.id)
             .single()
           
-          console.log("Dashboard: Podaci o korisniku iz baze:", userData)
-          
           if (userError) {
             console.error("Dashboard: Nije moguće dohvatiti podatke o korisniku:", userError.message)
           } else if (userData) {
-            console.log("Dashboard: Korisnička uloga iz baze:", userData.role)
             setIsAdmin(userData.role === 'admin')
             
             if (userData.full_name) {
-              console.log("Dashboard: Setting full name from database:", userData.full_name)
               setFullName(userData.full_name)
-            } else {
-              console.log("Dashboard: No full name in database")
             }
           } else {
-            console.log("Dashboard: Nema podataka o korisniku, koristim testne podatke")
             setIsAdmin(false)
           }
         }
@@ -253,7 +168,6 @@ export default function Dashboard() {
             setProposals(enhancedProposals)
           }
         } else {
-          console.log("No proposals found in database, using mock data")
           setProposals(getMockProposals())
         }
         
@@ -262,7 +176,6 @@ export default function Dashboard() {
         // Use mock data for error case
         setProposals(getMockProposals())
       } finally {
-        console.log("Dashboard: Finished checking user role and loading data")
         setCheckingRole(false)
         setLoading(false)
       }
@@ -272,7 +185,7 @@ export default function Dashboard() {
     if ((!isLoading || timeoutOccurred) && checkingRole) {
       checkUserRole()
     }
-  }, [user, isLoading, userMetadata, router, checkingRole, timeoutOccurred, fullName])
+  }, [user, isLoading, userData, router, checkingRole, timeoutOccurred, fullName])
 
   // Helper function to check if a proposal is from the last 7 days
   const isRecentProposal = (createdAt: string) => {
@@ -284,17 +197,12 @@ export default function Dashboard() {
   }
 
   if ((isLoading || checkingRole || loading) && !timeoutOccurred) {
-    console.log("Dashboard: Prikazujem loading stanje")
-    console.log("Dashboard: isLoading:", isLoading, "checkingRole:", checkingRole, "loading:", loading)
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="w-8 h-8 border-t-2 border-white rounded-full animate-spin"></div>
       </div>
     )
   }
-
-  console.log("Dashboard: Završeno učitavanje, isAdmin:", isAdmin)
-  console.log("Dashboard: Broj dostupnih predloga:", proposals.length)
 
   // Format date range function
   const formatDateRange = (startDate: string, endDate: string) => {
@@ -498,7 +406,6 @@ export default function Dashboard() {
 
   // Render different dashboard based on user role
   if (isAdmin) {
-    console.log("Dashboard: Prikazujem admin dashboard")
     // Admin Dashboard based on the first image
     return (
       <div className="p-8 min-h-screen bg-[#080808]">
@@ -545,7 +452,6 @@ export default function Dashboard() {
       </div>
     )
   } else {
-    console.log("Dashboard: Prikazujem korisnički dashboard")
     // User Dashboard based on the second image
     return (
       <div className="p-8 min-h-screen bg-background">
@@ -637,11 +543,11 @@ export default function Dashboard() {
 
               <Link
                 href={`/dashboard/proposal/${proposals[0].id}`}
-                className="inline-flex items-center justify-between px-8 py-4 bg-white rounded-full"
+                className="inline-flex items-center space-x-3 text-[#FFB900]"
               >
-                <span className="mr-16 text-black font-medium">Learn More</span>
+                <span>Learn More</span>
                 <svg width="7" height="14" viewBox="0 0 7 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M1 1L6 7L1 13" stroke="#131110" strokeWidth="1.67" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M1 1L6 7L1 13" stroke="#FFB900" strokeWidth="1.67" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </Link>
             </div>
@@ -720,4 +626,4 @@ export default function Dashboard() {
       </div>
     )
   }
-} 
+}

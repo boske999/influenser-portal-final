@@ -22,7 +22,7 @@ export default function CheckAuthStatus({
   children,
   fallback
 }: CheckAuthStatusProps) {
-  const { user, isLoading, userMetadata, refreshUserMetadata } = useAuth()
+  const { user, isLoading, userData, isAuthenticated, isAdmin } = useAuth()
   const router = useRouter()
   const [hasVerifiedAuth, setHasVerifiedAuth] = useState(false)
   const [isDirectDBLoading, setIsDirectDBLoading] = useState(false)
@@ -35,7 +35,7 @@ export default function CheckAuthStatus({
     const verifyAuth = async () => {
       try {
         // Za svaki slučaj, verifikovati sesiju direktno
-        if (!user && requireAuth) {
+        if (!isAuthenticated && requireAuth) {
           const { data } = await supabase.auth.getSession()
           
           // Ako nemamo sesiju a stranica zahteva autentikaciju, redirektujemo na login
@@ -47,8 +47,8 @@ export default function CheckAuthStatus({
         }
         
         // Ako imamo korisnika ali ne metapodatke, osvežiti metapodatke
-        if (user && !userMetadata && !isDirectDBLoading) {
-          console.log('CheckAuthStatus: User exists but metadata missing, refreshing')
+        if (user && !userData && !isDirectDBLoading) {
+          console.log('CheckAuthStatus: User exists but userData missing, fetching directly')
           setIsDirectDBLoading(true)
           
           // Paralelno, direktno dobaviti podatke iz baze
@@ -68,16 +68,11 @@ export default function CheckAuthStatus({
           } finally {
             if (isMounted) setIsDirectDBLoading(false)
           }
-          
-          // Osvežiti metapodatke kroz kontekst
-          refreshUserMetadata()
         }
         
         // Provera admin pristupa
         if (adminOnly) {
-          const userRole = userMetadata?.role || directUserData?.role
-          
-          if (userRole !== 'admin') {
+          if (!isAdmin) {
             console.log('CheckAuthStatus: User is not admin, redirecting to dashboard')
             router.push('/dashboard')
             return
@@ -99,7 +94,7 @@ export default function CheckAuthStatus({
     return () => {
       isMounted = false
     }
-  }, [user, userMetadata, isLoading, requireAuth, adminOnly, router, refreshUserMetadata])
+  }, [user, userData, isLoading, requireAuth, adminOnly, router, isAuthenticated, isAdmin])
   
   // Prikazati loading stanje dok se autentikacija verifikuje
   if ((isLoading || !hasVerifiedAuth) && requireAuth) {

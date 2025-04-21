@@ -16,7 +16,7 @@ const navigationItems = [
 
 export default function AdminSidebar() {
   const pathname = usePathname()
-  const { signOut, user } = useAuth()
+  const { signOut, user, userData } = useAuth()
 
   const renderIcon = (icon: string) => {
     switch (icon) {
@@ -60,6 +60,13 @@ export default function AdminSidebar() {
     }
   }
 
+  // Pripremamo ime za prikaz i avatar
+  const displayName = userData?.full_name || user?.email || 'Admin'
+  // Pripremamo inicijal za avatar
+  const avatarInitial = userData?.full_name 
+    ? userData.full_name.charAt(0).toUpperCase() 
+    : user?.email?.charAt(0).toUpperCase() || 'A'
+
   return (
     <div className="w-64 bg-[#080808] border-r border-white/10 min-h-screen p-6 flex flex-col">
       {/* Logo */}
@@ -100,12 +107,23 @@ export default function AdminSidebar() {
       <div className="mt-auto pt-6 border-t border-white/10">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center text-white">
-            {user?.email?.charAt(0).toUpperCase() || 'U'}
+            {userData?.avatar_url ? (
+              <Image 
+                src={userData.avatar_url}
+                alt="Admin avatar"
+                width={40}
+                height={40}
+                className="object-cover w-full h-full rounded-full"
+              />
+            ) : (
+              <span>{avatarInitial}</span>
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-white truncate">
-              {user?.email || 'User'}
+              {displayName}
             </p>
+            <p className="text-xs text-[#FFB900]">Admin</p>
           </div>
           <button 
             onClick={signOut}
