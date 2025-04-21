@@ -1,108 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '../../context/AuthContext'
-import { supabase } from '../../lib/supabase'
-
-type Notification = {
-  id: string
-  title: string
-  message: string
-  created_at: string
-  is_read: boolean
-  type: 'info' | 'action' | 'warning'
-  link_url?: string
-}
+import { useRouter } from 'next/navigation'
+import { useAdminNotifications } from '../../context/AdminNotificationContext'
 
 export default function AdminNotifications() {
-  const { user } = useAuth()
-  const [notifications, setNotifications] = useState<Notification[]>([])
+  const router = useRouter()
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useAdminNotifications()
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchNotifications = async () => {
-      if (!user) return
-      
-      try {
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('recipient_id', user.id)
-          .order('created_at', { ascending: false })
-        
-        if (error) throw error
-        
-        setNotifications(data || [])
-      } catch (error) {
-        console.error('Error fetching notifications:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-    
-    fetchNotifications()
-    
-    // Set up realtime subscription for new notifications
-    const subscription = supabase
-      .channel('public:notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `recipient_id=eq.${user?.id}`
-        },
-        (payload) => {
-          const newNotification = payload.new as Notification
-          setNotifications(prevNotifications => [newNotification, ...prevNotifications])
-        }
-      )
-      .subscribe()
-    
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [user])
-  
-  const markAsRead = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', id)
-      
-      if (error) throw error
-      
-      // Update the local state
-      setNotifications(prevNotifications => 
-        prevNotifications.map(notif => 
-          notif.id === id ? { ...notif, is_read: true } : notif
-        )
-      )
-    } catch (error) {
-      console.error('Error marking notification as read:', error)
-    }
-  }
-  
-  const markAllAsRead = async () => {
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('recipient_id', user?.id)
-        .eq('is_read', false)
-      
-      if (error) throw error
-      
-      // Update the local state
-      setNotifications(prevNotifications => 
-        prevNotifications.map(notif => ({ ...notif, is_read: true }))
-      )
-    } catch (error) {
-      console.error('Error marking all notifications as read:', error)
-    }
-  }
+    setLoading(false)
+  }, [notifications])
   
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -143,12 +52,41 @@ export default function AdminNotifications() {
     }
   }
   
+  const handleNotificationClick = async (notification: any) => {
+    // Mark as read first
+    if (!notification.is_read) {
+      await markAsRead(notification.id)
+    }
+    
+    console.log('Notification clicked:', {
+      id: notification.id,
+      proposalId: notification.related_proposal_id,
+      responseId: notification.related_response_id,
+      link: notification.link_url
+    })
+    
+    // Determine where to navigate
+    if (notification.related_proposal_id && notification.related_response_id) {
+      // If both proposal and response are related, navigate to the response in the context of the proposal
+      router.push(`/admin/proposal/${notification.related_proposal_id}/responses`)
+    } else if (notification.related_proposal_id) {
+      // If only proposal is related, navigate to the proposal
+      router.push(`/admin/proposal/${notification.related_proposal_id}`)
+    } else if (notification.related_response_id) {
+      // If only response is related, navigate to the response detail page
+      router.push(`/admin/response/${notification.related_response_id}`)
+    } else if (notification.link_url) {
+      // Use the link_url as fallback
+      router.push(notification.link_url)
+    }
+  }
+  
   return (
     <div className="p-10 max-w-4xl mx-auto">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-white">Notifications</h1>
         
-        {notifications.some(n => !n.is_read) && (
+        {unreadCount > 0 && (
           <button 
             onClick={markAllAsRead}
             className="text-sm text-[#FFB900] hover:underline"
@@ -167,11 +105,12 @@ export default function AdminNotifications() {
           {notifications.map((notification) => (
             <div 
               key={notification.id} 
-              className={`p-5 rounded-lg border ${
+              className={`p-5 rounded-lg border cursor-pointer ${
                 notification.is_read 
-                  ? 'bg-[#121212] border-white/5' 
-                  : 'bg-[#18170F] border-[#FFB900]/20'
+                  ? 'bg-[#121212] border-white/5 hover:bg-[#181818]' 
+                  : 'bg-[#18170F] border-[#FFB900]/20 hover:bg-[#1D1C14]'
               }`}
+              onClick={() => handleNotificationClick(notification)}
             >
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0 mt-1">
@@ -189,18 +128,18 @@ export default function AdminNotifications() {
                   <p className="text-sm text-gray-300 mb-3">{notification.message}</p>
                   
                   <div className="flex justify-between items-center mt-2">
-                    {notification.link_url && (
-                      <a 
-                        href={notification.link_url} 
-                        className="text-sm text-[#FFB900] hover:underline"
-                      >
+                    {(notification.link_url || notification.related_proposal_id) && (
+                      <span className="text-sm text-[#FFB900] hover:underline">
                         View details
-                      </a>
+                      </span>
                     )}
                     
                     {!notification.is_read && (
                       <button
-                        onClick={() => markAsRead(notification.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markAsRead(notification.id);
+                        }}
                         className="text-xs text-gray-400 hover:text-white"
                       >
                         Mark as read

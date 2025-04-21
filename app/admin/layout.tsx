@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../context/AuthContext'
 import AdminSidebar from '../components/AdminSidebar'
+import { AdminNotificationProvider } from '../context/AdminNotificationContext'
 
 export default function AdminLayout({
   children,
@@ -45,11 +46,13 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-[#080808]">
-      <AdminSidebar />
-      <main className="flex-1">
-        {children}
-      </main>
-    </div>
+    <AdminNotificationProvider>
+      <div className="flex min-h-screen bg-[#080808]">
+        <AdminSidebar />
+        <main className="flex-1">
+          {children}
+        </main>
+      </div>
+    </AdminNotificationProvider>
   )
 } 

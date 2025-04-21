@@ -4,12 +4,12 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '../context/AuthContext'
+import { useAdminNotifications } from '../context/AdminNotificationContext'
 
 const navigationItems = [
   { name: 'Dashboard', href: '/admin', icon: 'home' },
   { name: 'Create Proposal', href: '/admin/create-proposal', icon: 'proposal' },
   { name: 'Old Proposals', href: '/admin/old-proposals', icon: 'proposal' },
-  { name: 'Responses', href: '/admin/responses', icon: 'response' },
   { name: 'Notifications', href: '/admin/notifications', icon: 'notification' },
   { name: 'Settings', href: '/admin/settings', icon: 'settings' },
 ]
@@ -17,6 +17,7 @@ const navigationItems = [
 export default function AdminSidebar() {
   const pathname = usePathname()
   const { signOut, user, userData } = useAuth()
+  const { unreadCount } = useAdminNotifications()
 
   const renderIcon = (icon: string) => {
     switch (icon) {
@@ -84,6 +85,7 @@ export default function AdminSidebar() {
       <nav className="space-y-2 flex-1">
         {navigationItems.map((item) => {
           const isActive = pathname === item.href
+          const isNotification = item.name === 'Notifications'
           return (
             <Link 
               key={item.name} 
@@ -97,7 +99,12 @@ export default function AdminSidebar() {
               <span className={`mr-3 ${isActive ? 'text-[#FFB900]' : 'text-white/60'}`}>
                 {renderIcon(item.icon)}
               </span>
-              <span>{item.name}</span>
+              <span className="flex-1">{item.name}</span>
+              {isNotification && unreadCount > 0 && (
+                <span className="flex items-center justify-center h-5 min-w-5 px-1 text-xs font-medium rounded-full bg-[#FFB900] text-black">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </Link>
           )
         })}
