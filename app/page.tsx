@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from './context/AuthContext'
+import LoadingTimeout from './components/LoadingTimeout'
 
 export default function Home() {
   const { isAuthenticated, isAdmin, isLoading } = useAuth()
@@ -28,6 +29,7 @@ export default function Home() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="w-8 h-8 border-t-2 border-white rounded-full animate-spin"></div>
+      <LoadingTimeout isLoading={isLoading} />
     </div>
   )
 } 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import Link from 'next/link'
+import LoadingTimeout from '../../components/LoadingTimeout'
 
 type Proposal = {
   id: string
@@ -282,6 +283,7 @@ export default function OldProposalsPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="w-8 h-8 border-t-2 border-white rounded-full animate-spin"></div>
+        <LoadingTimeout isLoading={true} />
       </div>
     )
   }

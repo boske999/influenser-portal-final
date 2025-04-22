@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import Link from 'next/link'
+import LoadingTimeout from '../../components/LoadingTimeout'
 
 type Response = {
   id: string
@@ -55,9 +56,22 @@ export default function ViewResponsePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const responseId = searchParams.get('id')
+  const updated = searchParams.get('updated')
   
   const [response, setResponse] = useState<Response | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showUpdateBanner, setShowUpdateBanner] = useState(false)
+
+  useEffect(() => {
+    if (updated === 'true') {
+      setShowUpdateBanner(true)
+      // Hide the banner after 5 seconds
+      const timer = setTimeout(() => {
+        setShowUpdateBanner(false)
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [updated])
 
   useEffect(() => {
     const fetchResponseDetails = async () => {
@@ -109,12 +123,19 @@ export default function ViewResponsePage() {
           return
         }
         
-        console.log('DEBUG - Raw response data:', data);
-        console.log('DEBUG - Admin responses:', data.admin_responses);
-        if (data.admin_responses && data.admin_responses.length > 0) {
-          console.log('DEBUG - Admin response status:', data.admin_responses[0].status);
-          console.log('DEBUG - Admin response status type:', typeof data.admin_responses[0].status);
-          console.log('DEBUG - Admin message to user:', data.admin_responses[0].message_to_user);
+        // Always get the latest admin status to account for status changes
+        if (data.admin_responses && Array.isArray(data.admin_responses) && data.admin_responses.length > 0) {
+          // Refresh admin responses data to get the most current status
+          const { data: adminData, error: adminError } = await supabase
+            .from('admin_responses')
+            .select('id, status, message_to_user, created_at')
+            .eq('response_id', responseId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            
+          if (!adminError && adminData && adminData.length > 0) {
+            data.admin_responses = adminData
+          }
         }
         
         // Format the data to match our Response type
@@ -137,7 +158,7 @@ export default function ViewResponsePage() {
     if (!isLoading) {
       fetchResponseDetails()
     }
-  }, [user, isLoading, router, responseId])
+  }, [user, isLoading, router, responseId, updated])
 
   const renderAdminStatusBadge = () => {
     if (!response) {
@@ -184,6 +205,14 @@ export default function ViewResponsePage() {
         </span>
       );
     } else if (statusStr === "pending" || statusStr.includes("pend")) {
+      // Check if the status used to be rejected (implying it was edited and is now pending)
+      if (updated === 'true') {
+        return (
+          <span className="px-3 py-1 rounded-full text-sm bg-yellow-900/20 text-yellow-500">
+            Pending Review (Updated)
+          </span>
+        );
+      }
       return (
         <span className="px-3 py-1 rounded-full text-sm bg-yellow-900/20 text-yellow-500">
           Pending Review
@@ -203,11 +232,28 @@ export default function ViewResponsePage() {
     const method = paymentMethods.find(m => m.id === id);
     return method ? method.name : id;
   }
+  
+  const getAdminResponse = () => {
+    if (!response || !response.admin_responses) return null;
+    
+    return Array.isArray(response.admin_responses) 
+      ? (response.admin_responses.length > 0 ? response.admin_responses[0] : null)
+      : response.admin_responses;
+  }
+  
+  const isRejectedByAdmin = () => {
+    const adminResponse = getAdminResponse();
+    if (!adminResponse) return false;
+    
+    const statusStr = String(adminResponse.status).toLowerCase();
+    return statusStr === "rejected" || statusStr.includes("reject");
+  }
 
   if (isLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="w-8 h-8 border-t-2 border-[#FFB900] rounded-full animate-spin"></div>
+        <LoadingTimeout isLoading={true} />
       </div>
     )
   }
@@ -231,6 +277,25 @@ export default function ViewResponsePage() {
 
   return (
     <div className="p-8 min-h-screen bg-background">
+      {/* Success banner */}
+      {showUpdateBanner && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md">
+          <div className="bg-green-900/90 text-green-100 px-4 py-3 rounded-lg shadow-lg border border-green-700 flex items-center justify-between">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+              <p>Your response has been updated successfully!</p>
+            </div>
+            <button onClick={() => setShowUpdateBanner(false)} className="text-green-100 hover:text-white">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Back button */}
       <div className="mb-8">
         <Link
@@ -270,6 +335,52 @@ export default function ViewResponsePage() {
             </div>
           </div>
         </div>
+
+        {/* Admin Message (if exists) */}
+        {(() => {
+          if (!response.admin_responses) {
+            return null;
+          }
+          
+          // Proveri da li je admin_responses objekat ili niz
+          const adminResponse = Array.isArray(response.admin_responses) 
+            ? (response.admin_responses.length > 0 ? response.admin_responses[0] : undefined)
+            : response.admin_responses;
+          
+          if (!adminResponse || !adminResponse.message_to_user) {
+            return null;
+          }
+          
+          // Sada znamo da je poruka validna
+          return (
+            <div className="bg-[#121212] border border-white/5 p-6 rounded-lg mb-6">
+              <h2 className="text-xl font-semibold text-white mb-4">Admin Response</h2>
+              
+              <div className="flex items-center mb-4">
+                <span className="text-[#FFB900] mr-2">Status:</span>
+                {renderAdminStatusBadge()}
+              </div>
+              
+              <div>
+                <h3 className="text-[#FFB900] mb-2">Message from Admin</h3>
+                <div className="p-4 bg-[#1A1A1A] rounded-lg">
+                  <p className="text-gray-300">{adminResponse.message_to_user}</p>
+                </div>
+              </div>
+              
+              {isRejectedByAdmin() && !updated && (
+                <div className="mt-6">
+                  <Link
+                    href={`/dashboard/edit-response?id=${response.id}`}
+                    className="inline-flex items-center justify-center px-6 py-3 bg-[#FFB900] rounded-full text-black hover:bg-[#E2A600] transition"
+                  >
+                    Edit Your Response
+                  </Link>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <div className="bg-[#121212] border border-white/5 p-6 rounded-lg mb-6">
           <h2 className="text-xl font-semibold text-white mb-6">Your Response</h2>
@@ -356,41 +467,6 @@ export default function ViewResponsePage() {
             </>
           )}
         </div>
-
-        {/* Admin Message (if exists) */}
-        {(() => {
-          if (!response.admin_responses) {
-            return null;
-          }
-          
-          // Proveri da li je admin_responses objekat ili niz
-          const adminResponse = Array.isArray(response.admin_responses) 
-            ? (response.admin_responses.length > 0 ? response.admin_responses[0] : undefined)
-            : response.admin_responses;
-          
-          if (!adminResponse || !adminResponse.message_to_user) {
-            return null;
-          }
-          
-          // Sada znamo da je poruka validna
-          return (
-            <div className="bg-[#121212] border border-white/5 p-6 rounded-lg mb-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Admin Response</h2>
-              
-              <div className="flex items-center mb-4">
-                <span className="text-[#FFB900] mr-2">Status:</span>
-                {renderAdminStatusBadge()}
-              </div>
-              
-              <div>
-                <h3 className="text-[#FFB900] mb-2">Message from Admin</h3>
-                <div className="p-4 bg-[#1A1A1A] rounded-lg">
-                  <p className="text-gray-300">{adminResponse.message_to_user}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
 
         <div className="flex justify-between mt-8">
           <Link

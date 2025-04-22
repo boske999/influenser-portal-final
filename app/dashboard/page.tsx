@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import Link from 'next/link'
 import { useNotifications } from '../context/NotificationContext'
+import LoadingTimeout from '../components/LoadingTimeout'
 
 type Company = {
   id: string
@@ -201,6 +202,7 @@ export default function Dashboard() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="w-8 h-8 border-t-2 border-white rounded-full animate-spin"></div>
+        <LoadingTimeout isLoading={true} />
       </div>
     )
   }

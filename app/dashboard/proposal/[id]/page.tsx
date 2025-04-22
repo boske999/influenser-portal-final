@@ -37,6 +37,7 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
   const [showApplyModal, setShowApplyModal] = useState(false)
   const [showDeclineModal, setShowDeclineModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [isExpired, setIsExpired] = useState(false)
 
   useEffect(() => {
     const fetchProposalDetails = async () => {
@@ -75,6 +76,14 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
           setProposal(mockProposal)
         } else {
           setProposal(proposalData)
+          
+          // Check if proposal is expired based on campaign_end_date
+          const currentDate = new Date().toISOString().split('T')[0]
+          const endDate = proposalData.campaign_end_date
+          
+          if (endDate < currentDate) {
+            setIsExpired(true)
+          }
         }
 
         // Check if user has already responded to this proposal
@@ -210,22 +219,39 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
 
   // Add a link to view the response if the user has already responded
   const renderActionButtons = () => {
+    // If proposal is expired and user hasn't responded, show expired message
+    if (isExpired && !response) {
+      return (
+        <div className="space-y-4">
+          <div className="bg-[#1A1A1A] p-4 rounded-lg mb-4">
+            <p className="text-center text-white">
+              This offer has expired and is no longer accepting responses.
+            </p>
+          </div>
+        </div>
+      )
+    }
+    
     if (response) {
       return (
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="space-y-4">
+          <div className="bg-[#1A1A1A] p-4 rounded-lg mb-4">
+            <p className="text-center text-white">
+              {response.status === 'accepted' 
+                ? 'You have applied to this offer' 
+                : 'You have declined this offer'}
+            </p>
+            <p className="text-center text-gray-400 text-sm mt-2">
+              Submitted on {new Date(response.created_at).toLocaleDateString()}
+            </p>
+          </div>
+          
           <Link
             href={`/dashboard/view-response?id=${response.id}`}
-            className="inline-flex items-center justify-center px-8 py-4 bg-[#FFB900] rounded-full text-black font-medium transition-colors hover:bg-[#E0A800]"
+            className="w-full flex items-center justify-center space-x-2 px-8 py-4 bg-[#FFB900] rounded-full hover:bg-[#E6A800] transition-colors"
           >
-            View Your Response
+            <span className="text-black font-medium">View Your Response</span>
           </Link>
-          {/* You can implement update functionality later */}
-          {/* <button
-            onClick={handleUpdate}
-            className="inline-flex items-center justify-center px-8 py-4 border border-[#FFB900] rounded-full text-[#FFB900] font-medium transition-colors hover:bg-white/5"
-          >
-            Update Response
-          </button> */}
         </div>
       )
     }
@@ -317,49 +343,7 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
 
           {/* Apply and Decline buttons section */}
           <div className="w-full space-y-4">
-            {response ? (
-              <div className="space-y-4">
-                <div className="bg-[#1A1A1A] p-4 rounded-lg mb-4">
-                  <p className="text-center text-white">
-                    {response.status === 'accepted' 
-                      ? 'You have applied to this offer' 
-                      : 'You have declined this offer'}
-                  </p>
-                  <p className="text-center text-gray-400 text-sm mt-2">
-                    Submitted on {new Date(response.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                
-                {/* View Response button */}
-                <Link
-                  href={`/dashboard/view-response?id=${response.id}`}
-                  className="w-full flex items-center justify-center space-x-2 px-8 py-4 bg-[#FFB900] rounded-full hover:bg-[#E6A800] transition-colors"
-                >
-                  <span className="text-black font-medium">View Your Response</span>
-                </Link>
-              </div>
-            ) : (
-              <>
-                <button
-                  onClick={handleApply}
-                  className="w-full flex items-center justify-center space-x-2 px-8 py-4 bg-[#FFB900] rounded-full hover:bg-[#E6A800] transition-colors"
-                  disabled={submitting}
-                >
-                  <span className="text-black font-medium">
-                    {submitting ? 'Processing...' : 'Apply Offer'}
-                  </span>
-                </button>
-                <button
-                  onClick={handleDecline}
-                  className="w-full flex items-center justify-center space-x-2 px-8 py-4 bg-transparent border border-white/20 text-white rounded-full hover:bg-white/5 transition-colors"
-                  disabled={submitting}
-                >
-                  <span className="font-medium">
-                    {submitting ? 'Processing...' : 'Decline Offer'}
-                  </span>
-                </button>
-              </>
-            )}
+            {renderActionButtons()}
           </div>
         </div>
         

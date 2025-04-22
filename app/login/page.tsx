@@ -4,35 +4,35 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { useAuth } from '../context/AuthContext'
 import { useRouter, useSearchParams } from 'next/navigation'
+import AlertUtils from '../components/AlertUtils'
+import { Toaster } from 'react-hot-toast'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   
-  const { signIn, isAuthenticated, isAdmin, userData } = useAuth()
+  const { signIn, isAuthenticated, userData } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
 
   // Handle authenticated user redirects
   useEffect(() => {
-    // If authenticated and the success message is shown, redirect to appropriate page
-    if (isAuthenticated && successMessage) {
+    // If authenticated, redirect to appropriate page
+    if (isAuthenticated) {
       const destination = userData?.role === 'admin' ? '/admin' : '/dashboard'
       setTimeout(() => {
         router.push(destination)
       }, 1000)
     }
-  }, [isAuthenticated, isAdmin, userData, successMessage, router])
+  }, [isAuthenticated, userData, router])
 
   // Check for message in URL
   useEffect(() => {
     const message = searchParams.get('message')
     if (message) {
-      setSuccessMessage(message.replace(/\+/g, ' '))
+      AlertUtils.info('Notification', message.replace(/\+/g, ' '))
     }
   }, [searchParams])
 
@@ -40,25 +40,23 @@ export default function Login() {
     e.preventDefault()
     
     if (!email || !password) {
-      setError('Please enter both email and password')
+      AlertUtils.warning('Validation Error', 'Please enter both email and password')
       return
     }
     
     setIsLoading(true)
-    setError(null)
-    setSuccessMessage(null)
     
     try {
       const { error } = await signIn(email, password)
       
       if (error) {
-        setError(error.message || 'Invalid email or password')
+        AlertUtils.error('Login Failed', error.message || 'Invalid email or password')
       } else {
-        setSuccessMessage('Login successful! Redirecting...')
+        AlertUtils.success('Login Successful', 'Welcome back!')
         // Client-side redirect will be handled by useEffect watching isAuthenticated
       }
     } catch (err) {
-      setError('An unexpected error occurred')
+      AlertUtils.error('Error', 'An unexpected error occurred')
     } finally {
       setIsLoading(false)
     }
@@ -66,6 +64,7 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen bg-background">
+      <Toaster position="top-right" />
       {/* Login form - Takes full width on mobile, half on desktop */}
       <div className="w-full md:w-1/2 flex items-center justify-center p-4">
         <div className="w-full max-w-[505px] px-4 py-6 space-y-8">
@@ -90,13 +89,6 @@ export default function Login() {
           
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Success message */}
-            {successMessage && (
-              <div className="bg-green-900/20 text-green-400 px-4 py-3 rounded-md">
-                {successMessage}
-              </div>
-            )}
-            
             <div className="space-y-3">
               {/* Email input */}
               <div>
@@ -140,11 +132,6 @@ export default function Login() {
                   </svg>
                 </button>
               </div>
-              
-              {/* Error message */}
-              {error && (
-                <div className="text-red-500 text-sm mt-1">{error}</div>
-              )}
             </div>
             
             {/* Login button and forgot password - Stack on mobile, side by side on tablet+ */}
