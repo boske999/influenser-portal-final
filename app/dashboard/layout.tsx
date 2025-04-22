@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../context/AuthContext'
 import Sidebar from '../components/Sidebar'
+import { NotificationProvider } from '../context/NotificationContext'
 
 export default function DashboardLayout({
   children,
@@ -45,11 +46,15 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
-    </div>
+    <NotificationProvider>
+      <div className="app-layout">
+        <Sidebar />
+        <main className="app-layout-content">
+          <div className="main-content">
+            {children}
+          </div>
+        </main>
+      </div>
+    </NotificationProvider>
   )
 } 

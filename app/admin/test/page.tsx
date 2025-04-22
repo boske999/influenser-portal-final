@@ -1,85 +1,135 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useAuth } from '../../context/AuthContext'
+import { useState, useEffect, useRef } from 'react'
+import dynamic from 'next/dynamic'
 
-export default function AdminTest() {
-  const { user, isAuthenticated, isAdmin, userData } = useAuth()
-  const [sessionInfo, setSessionInfo] = useState<any>(null)
+// Dynamically import Quill to avoid SSR issues
+const ReactQuill = dynamic(() => import('react-quill'), {
+  ssr: false,
+  loading: () => <p>Loading editor...</p>
+})
+
+// Import Quill styles
+import 'react-quill/dist/quill.snow.css'
+
+export default function TestQuill() {
+  const [content, setContent] = useState('')
+  const [isMounted, setIsMounted] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const quillRef = useRef<any>(null)
   
   useEffect(() => {
-    const fetchSessionInfo = async () => {
-      // Import supabase dynamically to avoid server-side issues
-      const { supabase } = await import('../../lib/supabase')
-      const { data } = await supabase.auth.getSession()
-      setSessionInfo(data.session)
+    try {
+      setIsMounted(true)
+      console.log('Component mounted')
+    } catch (err) {
+      console.error('Error in mounting:', err)
+      setError(`Error in mounting: ${err}`)
     }
     
-    fetchSessionInfo()
+    return () => {
+      setIsMounted(false)
+    }
   }, [])
   
+  const handleChange = (value: string) => {
+    console.log('Content changed:', value)
+    setContent(value)
+  }
+  
+  const handleImageUpload = () => {
+    const input = document.createElement('input')
+    input.setAttribute('type', 'file')
+    input.setAttribute('accept', 'image/*')
+    input.click()
+    
+    input.onchange = async () => {
+      if (!input.files || !input.files[0]) return
+      
+      const file = input.files[0]
+      
+      try {
+        const editor = quillRef.current?.getEditor()
+        if (editor) {
+          // Get cursor position
+          const range = editor.getSelection()
+          const position = range ? range.index : 0
+          
+          // Insert a placeholder
+          editor.insertText(position, 'Uploading image...')
+          
+          // Simulate upload delay
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          
+          // Remove placeholder
+          editor.deleteText(position, 'Uploading image...'.length)
+          
+          // Create a fake URL for testing
+          const imageUrl = URL.createObjectURL(file)
+          
+          // Insert image at cursor position
+          editor.insertEmbed(position, 'image', imageUrl)
+          
+          // Update content state
+          setContent(editor.root.innerHTML)
+        }
+      } catch (err) {
+        console.error('Error uploading image:', err)
+        setError(`Error uploading image: ${err}`)
+      }
+    }
+  }
+  
+  const modules = {
+    toolbar: {
+      container: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        ['link', 'image'],
+        ['clean']
+      ],
+      handlers: {
+        image: handleImageUpload
+      }
+    }
+  }
+  
   return (
-    <div className="p-10 bg-gray-900 min-h-screen">
-      <h1 className="text-4xl font-bold text-white mb-8">Admin Test Page</h1>
+    <div className="p-10 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">React Quill Test</h1>
       
-      <div className="bg-gray-800 rounded-lg p-6 text-white">
-        <h2 className="text-2xl font-semibold mb-4">Authentication Status</h2>
-        
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-gray-700 p-3 rounded">
-            <span className="text-gray-400">Authenticated:</span>
-            <span className={isAuthenticated ? 'text-green-400 ml-2' : 'text-red-400 ml-2'}>
-              {isAuthenticated ? 'Yes' : 'No'}
-            </span>
-          </div>
-          
-          <div className="bg-gray-700 p-3 rounded">
-            <span className="text-gray-400">Admin:</span>
-            <span className={isAdmin ? 'text-green-400 ml-2' : 'text-red-400 ml-2'}>
-              {isAdmin ? 'Yes' : 'No'}
-            </span>
-          </div>
-          
-          <div className="bg-gray-700 p-3 rounded">
-            <span className="text-gray-400">User ID:</span>
-            <span className="text-blue-400 ml-2">
-              {user?.id || 'None'}
-            </span>
-          </div>
-          
-          <div className="bg-gray-700 p-3 rounded">
-            <span className="text-gray-400">Role:</span>
-            <span className="text-yellow-400 ml-2">
-              {userData?.role || 'None'}
-            </span>
-          </div>
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <p>Error: {error}</p>
         </div>
-        
-        <h3 className="text-xl font-semibold mb-3">Session Data</h3>
-        <pre className="bg-gray-700 p-4 rounded overflow-auto text-xs">
-          {sessionInfo ? JSON.stringify(sessionInfo, null, 2) : 'No session data'}
-        </pre>
-      </div>
+      )}
       
-      <div className="mt-8 flex gap-4">
-        <button 
-          onClick={() => window.location.href = '/'}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Go to Home
-        </button>
-        <button 
-          onClick={() => window.location.href = '/dashboard'}
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-        >
-          Go to Dashboard
-        </button>
-        <button 
-          onClick={() => window.location.href = '/login'}
-          className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-        >
-          Go to Login
-        </button>
+      <div className="p-6 bg-white rounded shadow">
+        <p className="mb-4">Editor mounting state: {isMounted ? 'Mounted' : 'Not mounted'}</p>
+        
+        {isMounted ? (
+          <>
+            <div className="mb-4">
+              <ReactQuill 
+                value={content} 
+                onChange={handleChange}
+                theme="snow"
+                modules={modules}
+                ref={(el) => { quillRef.current = el }}
+              />
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Editor Value:</h3>
+              <pre className="bg-gray-100 p-2 rounded overflow-auto max-h-40">{content}</pre>
+            </div>
+          </>
+        ) : (
+          <div className="p-4 border border-gray-300 rounded">
+            <p>Loading editor...</p>
+          </div>
+        )}
       </div>
     </div>
   )

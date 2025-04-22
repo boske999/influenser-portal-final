@@ -124,8 +124,8 @@ export default function Dashboard() {
         
         if (proposalError) {
           console.error('Error fetching proposals:', proposalError)
-          // Use mock data
-          setProposals(getMockProposals())
+          // Set empty array instead of mock data
+          setProposals([])
         } else if (proposalData && proposalData.length > 0) {
           // If we have proposals, fetch responses for this user
           const proposalIds = proposalData.map(p => p.id)
@@ -168,13 +168,14 @@ export default function Dashboard() {
             setProposals(enhancedProposals)
           }
         } else {
-          setProposals(getMockProposals())
+          // Set empty array for no proposals instead of using mock data
+          setProposals([])
         }
         
       } catch (error) {
         console.error('Error:', error)
-        // Use mock data for error case
-        setProposals(getMockProposals())
+        // Set empty array for errors instead of using mock data
+        setProposals([])
       } finally {
         setCheckingRole(false)
         setLoading(false)
@@ -456,7 +457,7 @@ export default function Dashboard() {
     return (
       <div className="p-8 min-h-screen bg-background">
         {/* Header */}
-        <div className="flex justify-between items-start mb-12">
+        <div className="is-header flex justify-between items-start mb-12">
           <div className="space-y-2">
             <h1 className="text-4xl font-bold text-white">
               Welcome{fullName ? `, ${fullName}` : ''}
@@ -464,7 +465,7 @@ export default function Dashboard() {
             <p className="text-gray-400">View available offers and track the status of your responses</p>
           </div>
           
-          <div className="flex items-center space-x-6">
+          <div className="flex-vertical-mobile flex items-center space-x-6">
             <Link href="/dashboard/notifications" className="relative flex items-center">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-gray-400 hover:text-white transition-colors">
                 <path d="M18 8C18 6.4087 17.3679 4.88258 16.2426 3.75736C15.1174 2.63214 13.5913 2 12 2C10.4087 2 8.88258 2.63214 7.75736 3.75736C6.63214 4.88258 6 6.4087 6 8C6 15 3 17 3 17H21C21 17 18 15 18 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -489,129 +490,78 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Featured Proposal */}
-        {proposals.length > 0 && (
-          <div className="bg-[#121212] border border-white/5 mb-10">
-            <div className="p-10 big-item">
-              <div className="mb-8">
-                <div className="inline-block px-4 py-1 border border-[#FFB900] text-[#FFB900] rounded-full mb-4">
-                  New
-                </div>
-                <div className="flex items-center space-x-3">
-                  <h2 className="text-2xl font-bold text-white">{proposals[0].title}</h2>
-                  <div className="flex flex-col items-start big-answer-wrap">
-                    {renderStatusBadge(proposals[0])}
-                    {proposals[0].user_response && proposals[0].user_response.status === 'accepted' && renderAdminStatusBadge(proposals[0])}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-8">
-                <div className="border-t border-white/10 border-b border-white/10">
-                  <div className="py-3">
-                    <div className="flex space-x-24">
-                      <div>
-                        <p className="text-sm text-[#FFB900]">Company</p>
-                        <p className="text-gray-300">{proposals[0].company_name}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-[#FFB900]">Campaign Date</p>
-                        <p className="text-gray-300">
-                          {formatDateRange(
-                            proposals[0].campaign_start_date,
-                            proposals[0].campaign_end_date
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-[#FFB900]">Timeline</p>
-                        <p className="text-gray-300">
-                          {calculateTimeline(
-                            proposals[0].campaign_start_date,
-                            proposals[0].campaign_end_date
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-8">
-                <p className="text-gray-300">{proposals[0].short_description}</p>
-              </div>
-
-              <Link
-                href={`/dashboard/proposal/${proposals[0].id}`}
-                className="inline-flex items-center space-x-3 text-[#FFB900]"
-              >
-                <span>Learn More</span>
-                <svg width="7" height="14" viewBox="0 0 7 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M1 1L6 7L1 13" stroke="#FFB900" strokeWidth="1.67" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </Link>
-            </div>
+        {proposals.length === 0 ? (
+          <div className="bg-[#121212] border border-white/5 p-10 text-center rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <h2 className="text-2xl font-bold text-white mb-2">No Active Proposals</h2>
+            <p className="text-gray-400 mb-6">There are currently no active campaign proposals available.</p>
+            <Link 
+              href="/dashboard/old-proposals" 
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-[#FFB900] text-black rounded-md"
+            >
+              <span>View Past Campaigns</span>
+              <svg width="7" height="12" viewBox="0 0 7 14" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-3">
+                <path d="M1 1L6 7L1 13" stroke="currentColor" strokeWidth="1.67" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </Link>
           </div>
-        )}
-
-        {/* Recent Proposals Grid */}
-        <div className="grid grid-cols-3 gap-8">
-          {proposals.slice(1, 4).map((proposal) => (
-            <div key={proposal.id} className="bg-[#121212] border border-white/5">
-              <div className="p-10 small-item">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-white">{proposal.title}</h3>
-                  <div className="flex big-answer-wrap flex-col items-end">
-                    {renderStatusBadge(proposal)}
-                    {proposal.user_response && proposal.user_response.status === 'accepted' && renderAdminStatusBadge(proposal)}
+        ) : (
+          <>
+            {/* Featured Proposal */}
+            <div className="bg-[#121212] border border-white/5 mb-10">
+              <div className="p-10 big-item">
+                <div className="mb-8">
+                  <div className="inline-block px-4 py-1 border border-[#FFB900] text-[#FFB900] rounded-full mb-4">
+                    New
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <h2 className="text-2xl font-bold text-white">{proposals[0].title}</h2>
+                    <div className="flex flex-col items-start big-answer-wrap">
+                      {renderStatusBadge(proposals[0])}
+                      {proposals[0].user_response && proposals[0].user_response.status === 'accepted' && renderAdminStatusBadge(proposals[0])}
+                    </div>
                   </div>
                 </div>
 
-                {/* Admin message if there is one */}
-                {proposal.admin_response?.message_to_user && (
-                  <div className="mb-4 p-3 bg-[#1A1A1A] rounded-lg">
-                    <p className="text-sm text-[#FFB900] mb-1">Admin Message:</p>
-                    <p className="text-gray-300 text-sm">{proposal.admin_response.message_to_user}</p>
-                  </div>
-                )}
-
-                <div className="space-y-3 mb-8">
-                  <div className="border-t border-white/10">
-                    <div className="py-3">
-                      <p className="text-sm text-[#FFB900]">Company</p>
-                      <p className="text-gray-300">{proposal.company_name}</p>
-                    </div>
-                  </div>
-                  <div className="border-t border-white/10">
-                    <div className="py-3">
-                      <p className="text-sm text-[#FFB900]">Campaign Date</p>
-                      <p className="text-gray-300">
-                        {formatDateRange(
-                          proposal.campaign_start_date,
-                          proposal.campaign_end_date
-                        )}
-                      </p>
-                    </div>
-                  </div>
+                <div className="mb-8">
                   <div className="border-t border-white/10 border-b border-white/10">
                     <div className="py-3">
-                      <p className="text-sm text-[#FFB900]">Timeline</p>
-                      <p className="text-gray-300">
-                        {calculateTimeline(
-                          proposal.campaign_start_date,
-                          proposal.campaign_end_date
-                        )}
-                      </p>
+                      <div className="flex-vertical-moobile flex space-x-24">
+                        <div>
+                          <p className="text-sm text-[#FFB900]">Company</p>
+                          <p className="text-gray-300">{proposals[0].company_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-[#FFB900]">Campaign Date</p>
+                          <p className="text-gray-300">
+                            {formatDateRange(
+                              proposals[0].campaign_start_date,
+                              proposals[0].campaign_end_date
+                            )}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-[#FFB900]">Timeline</p>
+                          <p className="text-gray-300">
+                            {calculateTimeline(
+                              proposals[0].campaign_start_date,
+                              proposals[0].campaign_end_date
+                            )}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="mb-5">
-                  <p className="text-gray-300 line-clamp-4">{proposal.short_description}</p>
+                <div className="mb-8">
+                  <p className="text-gray-300">{proposals[0].short_description}</p>
                 </div>
 
                 <Link
-                  href={`/dashboard/proposal/${proposal.id}`}
+                  href={`/dashboard/proposal/${proposals[0].id}`}
                   className="inline-flex items-center space-x-3 text-[#FFB900]"
                 >
                   <span>Learn More</span>
@@ -621,8 +571,80 @@ export default function Dashboard() {
                 </Link>
               </div>
             </div>
-          ))}
-        </div>
+
+            {/* Recent Proposals Grid */}
+            {proposals.length > 1 && (
+              <div className="grid grid-cols-3 gap-8">
+                {proposals.slice(1, 4).map((proposal) => (
+                  <div key={proposal.id} className="bg-[#121212] border border-white/5">
+                    <div className="p-10 small-item">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-xl font-bold text-white">{proposal.title}</h3>
+                        <div className="flex big-answer-wrap flex-col items-end">
+                          {renderStatusBadge(proposal)}
+                          {proposal.user_response && proposal.user_response.status === 'accepted' && renderAdminStatusBadge(proposal)}
+                        </div>
+                      </div>
+
+                      {/* Admin message if there is one */}
+                      {proposal.admin_response?.message_to_user && (
+                        <div className="mb-4 p-3 bg-[#1A1A1A] rounded-lg">
+                          <p className="text-sm text-[#FFB900] mb-1">Admin Message:</p>
+                          <p className="text-gray-300 text-sm">{proposal.admin_response.message_to_user}</p>
+                        </div>
+                      )}
+
+                      <div className="space-y-3 mb-8">
+                        <div className="border-t border-white/10">
+                          <div className="py-3">
+                            <p className="text-sm text-[#FFB900]">Company</p>
+                            <p className="text-gray-300">{proposal.company_name}</p>
+                          </div>
+                        </div>
+                        <div className="border-t border-white/10">
+                          <div className="py-3">
+                            <p className="text-sm text-[#FFB900]">Campaign Date</p>
+                            <p className="text-gray-300">
+                              {formatDateRange(
+                                proposal.campaign_start_date,
+                                proposal.campaign_end_date
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="border-t border-white/10 border-b border-white/10">
+                          <div className="py-3">
+                            <p className="text-sm text-[#FFB900]">Timeline</p>
+                            <p className="text-gray-300">
+                              {calculateTimeline(
+                                proposal.campaign_start_date,
+                                proposal.campaign_end_date
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mb-5">
+                        <p className="text-gray-300 line-clamp-4">{proposal.short_description}</p>
+                      </div>
+
+                      <Link
+                        href={`/dashboard/proposal/${proposal.id}`}
+                        className="inline-flex items-center space-x-3 text-[#FFB900]"
+                      >
+                        <span>Learn More</span>
+                        <svg width="7" height="14" viewBox="0 0 7 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M1 1L6 7L1 13" stroke="#FFB900" strokeWidth="1.67" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     )
   }

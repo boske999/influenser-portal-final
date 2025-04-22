@@ -228,14 +228,76 @@ export default function EditProposal() {
         }
       }
       
+      // Process content to handle any base64 encoded images and upload them to Supabase
+      let processedContent = formData.content
+      
+      // Check if there are any base64 encoded images in the content
+      if (formData.content.includes('data:image')) {
+        // Create a temporary DOM element to parse the HTML content
+        const tempDiv = document.createElement('div')
+        tempDiv.innerHTML = formData.content
+        
+        // Find all image elements with base64 source
+        const base64Images = tempDiv.querySelectorAll('img[src^="data:image"]')
+        
+        // Upload each base64 image to Supabase
+        for (let i = 0; i < base64Images.length; i++) {
+          const img = base64Images[i] as HTMLImageElement
+          const base64Str = img.src
+          
+          try {
+            // Extract file data and type from base64 string
+            const [, dataTypeStr] = base64Str.match(/^data:(image\/\w+);base64,(.*)$/) || []
+            if (!dataTypeStr) continue
+            
+            const imageType = dataTypeStr.split(';')[0]
+            const fileExt = imageType.split('/')[1]
+            const base64Data = base64Str.split(',')[1]
+            
+            // Convert base64 to Blob
+            const byteString = atob(base64Data)
+            const arrayBuffer = new ArrayBuffer(byteString.length)
+            const intArray = new Uint8Array(arrayBuffer)
+            
+            for (let j = 0; j < byteString.length; j++) {
+              intArray[j] = byteString.charCodeAt(j)
+            }
+            
+            const blob = new Blob([arrayBuffer], { type: imageType })
+            const file = new File([blob], `image-${Date.now()}.${fileExt}`, { type: imageType })
+            
+            // Upload file to Supabase
+            const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`
+            const { error: uploadError } = await supabase.storage
+              .from('rich-text')
+              .upload(fileName, file)
+              
+            if (uploadError) throw uploadError
+            
+            // Get public URL for the uploaded file
+            const { data: { publicUrl } } = supabase.storage
+              .from('rich-text')
+              .getPublicUrl(fileName)
+            
+            // Replace the base64 src with the new URL in the original image
+            img.src = publicUrl
+          } catch (error) {
+            console.error('Error uploading base64 image:', error)
+          }
+        }
+        
+        // Get the updated HTML content with replaced image URLs
+        processedContent = tempDiv.innerHTML
+      }
+      
       // Prepare a more structured content for jsonb storage
       const contentJson = {
         type: 'rich-text',
-        html: formData.content, // Store the HTML content
+        html: processedContent, // Store the processed HTML content
         blocks: [
           {
             type: 'html',
-            content: formData.content
+            content: processedContent
           }
         ]
       }

@@ -22,6 +22,30 @@ body {
   .primary-button {
     @apply flex items-center justify-between px-8 py-3 rounded-full bg-white text-buttonText font-semibold;
   }
+  
+  /* Responsive container */
+  .responsive-container {
+    @apply w-full px-5 mx-auto;
+    @apply sm:px-6 sm:max-w-screen-sm md:max-w-screen-md lg:max-w-screen-lg xl:max-w-screen-xl;
+  }
+  
+  /* Responsive grid */
+  .responsive-grid {
+    @apply grid grid-cols-1 gap-4;
+    @apply sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+  }
+
+  /* Grid for standard 3-column layouts that should be 1 column on mobile */
+  .grid-responsive-3 {
+    @apply grid grid-cols-1 gap-4;
+    @apply md:grid-cols-2 lg:grid-cols-3;
+  }
+
+  /* Grid for standard 2-column layouts that should be 1 column on mobile */
+  .grid-responsive-2 {
+    @apply grid grid-cols-1 gap-4;
+    @apply md:grid-cols-2;
+  }
 } 
 
 .image-100-cover{
@@ -29,12 +53,27 @@ body {
   height: 100%;
   object-fit: cover;
 }
+
 .login-bg{
   max-height: 100svh;
 }
+
+/* Make the login page responsive */
+@media (max-width: 768px) {
+  .flex-vertical-moobile{
+    display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+  }
+  .login-bg {
+    display: none;
+  }
+}
+
 .big-item{
   position: relative;
 }
+
 .big-answer-wrap{
   position: absolute;
   top: 10px;
@@ -43,6 +82,7 @@ body {
   flex-direction: column;
   row-gap: 5px;
 }
+
 .status-badge{
   width: 100%;
   text-align: center;
@@ -53,4 +93,97 @@ body {
 .small-item{
   position: relative;
   padding-top:100px;
+}
+
+/* Responsive padding for main content area */
+.main-content {
+  @apply py-4 px-5 md:py-6 md:px-6 lg:py-8 lg:px-8;
+}
+
+/* Responsive typography */
+h1 {
+  @apply text-2xl md:text-3xl lg:text-4xl;
+}
+
+h2 {
+  @apply text-xl md:text-2xl lg:text-3xl;
+}
+
+h3 {
+  @apply text-lg md:text-xl lg:text-2xl;
+}
+
+/* App layout with sidebar */
+.app-layout {
+  @apply flex flex-col md:flex-row min-h-screen;
+}
+
+.app-layout-content {
+  @apply flex-1; /* Match sidebar width */
+}
+
+/* Responsive tables */
+.responsive-table {
+  @apply w-full overflow-x-auto;
+}
+
+/* Adjustments for very small screens - below 480px */
+@media (max-width: 480px) {
+  /* Content padding */
+  .main-content {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  
+  /* Force all grid-cols-3 to be single column */
+  .grid-cols-3 {
+    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+  }
+  
+  /* Padding adjustments */
+  .p-8 {
+    padding: 0px !important;
+  }
+  .mobile-navbar{
+    padding-top: 100px;
+  }
+  /* Fix spacing issues in flex layouts */
+  .space-x-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-left: 0 !important;
+    margin-top: 10px;
+  }
+
+  .space-x-24 > :not([hidden]) ~ :not([hidden]) {
+    margin-left: 0 !important;
+    padding-top: 10px;
+  }
+  
+  /* Stack flex items in a column on mobile */
+  .mt-6.flex.justify-end {
+    flex-direction: column;
+    align-items: flex-start;
+    row-gap: 10px;
+  }
+  
+  /* Reverse columns in header layouts */
+  .is-header {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    row-gap: 20px;
+  }
+  .big-item{
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .small-item{
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  
+  /* Ensure touch targets are big enough */
+  button, .button, a[role="button"] {
+    min-height: 44px;
+  }
 }

@@ -53,9 +53,7 @@ export default function OldProposalsPage() {
         
         if (error) {
           console.error('Error fetching past proposals:', error)
-          
-          // Use mock data if database query fails
-          setProposals(getMockProposals())
+          setProposals([]) // Show empty state instead of mock data
         } else if (data && data.length > 0) {
           // If we have proposals, fetch responses for this user
           const proposalIds = data.map(p => p.id)
@@ -98,14 +96,12 @@ export default function OldProposalsPage() {
             setProposals(enhancedProposals)
           }
         } else {
-          // No data in database, use mock data
-          setProposals(getMockProposals())
+          // No data in database, show empty state instead of mock data
+          setProposals([])
         }
       } catch (error) {
         console.error('Error:', error)
-        
-        // Use mock data if an exception occurs
-        setProposals(getMockProposals())
+        setProposals([]) // Show empty state instead of mock data
       } finally {
         setLoading(false)
       }
@@ -294,7 +290,7 @@ export default function OldProposalsPage() {
     <div className="p-8 min-h-screen bg-background">
       {/* Header */}
       <div className="mb-12">
-        <div className="flex items-center justify-between">
+        <div className="is-header flex items-center justify-between">
           <div className="space-y-2">
             <h1 className="text-4xl font-bold text-white">Past Campaigns</h1>
             <p className="text-gray-400">Review previous advertising opportunities</p>

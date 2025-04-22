@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '../../../context/AuthContext'
 import { supabase } from '../../../lib/supabase'
+import ConfirmationModal from '../../../components/ConfirmationModal'
+import SystemMessages from '../../../components/SystemMessages'
 
 type Proposal = {
   id: string
@@ -35,6 +37,8 @@ export default function ProposalDetailsPage() {
   const [proposal, setProposal] = useState<Proposal | null>(null)
   const [responses, setResponses] = useState<Response[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   
   useEffect(() => {
     const fetchProposal = async () => {
@@ -130,6 +134,118 @@ export default function ProposalDetailsPage() {
     return `${diffDays} days`
   }
   
+  const handleDeleteProposal = async () => {
+    if (!id) return
+    
+    setIsDeleting(true)
+    
+    try {
+      console.log(`Starting deletion process for proposal: ${id}`)
+      
+      // First, find all response IDs related to this proposal
+      const { data: responseIds, error: responsesError } = await supabase
+        .from('responses')
+        .select('id')
+        .eq('proposal_id', id)
+      
+      if (responsesError) {
+        console.error('Error fetching response IDs:', responsesError)
+        throw responsesError
+      }
+      
+      console.log(`Found ${responseIds?.length || 0} responses to delete`)
+      
+      // Extract IDs from the response data
+      const responseIdList = responseIds?.map(r => r.id) || []
+      
+      // Step 1: Delete related admin_responses
+      if (responseIdList.length > 0) {
+        console.log(`Deleting admin responses for ${responseIdList.length} user responses`)
+        const { error: adminResponsesError } = await supabase
+          .from('admin_responses')
+          .delete()
+          .in('response_id', responseIdList)
+        
+        if (adminResponsesError) {
+          console.error('Error deleting admin responses:', adminResponsesError)
+          throw adminResponsesError
+        }
+        console.log('Admin responses deleted successfully')
+      }
+      
+      // Step 2: Delete related notifications 
+      console.log(`Deleting notifications related to proposal: ${id}`)
+      const { error: notificationsError } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('related_proposal_id', id)
+      
+      if (notificationsError) {
+        console.error('Error deleting notifications:', notificationsError)
+        throw notificationsError
+      }
+      console.log('Proposal notifications deleted successfully')
+      
+      // Step 3: Delete any additional notifications related to responses
+      if (responseIdList.length > 0) {
+        console.log(`Deleting notifications related to ${responseIdList.length} responses`)
+        const { error: responseNotificationsError } = await supabase
+          .from('notifications')
+          .delete()
+          .in('related_response_id', responseIdList)
+        
+        if (responseNotificationsError) {
+          console.error('Error deleting response notifications:', responseNotificationsError)
+          throw responseNotificationsError
+        }
+        console.log('Response notifications deleted successfully')
+      }
+      
+      // Step 4: Delete the responses
+      if (responseIdList.length > 0) {
+        console.log(`Deleting ${responseIdList.length} user responses`)
+        const { error: deleteResponsesError } = await supabase
+          .from('responses')
+          .delete()
+          .eq('proposal_id', id)
+        
+        if (deleteResponsesError) {
+          console.error('Error deleting responses:', deleteResponsesError)
+          throw deleteResponsesError
+        }
+        console.log('User responses deleted successfully')
+      }
+      
+      // Step 5: Finally delete the proposal
+      console.log(`Deleting the proposal with ID: ${id}`)
+      const { data: deleteResult, error: deleteProposalError } = await supabase
+        .from('proposals')
+        .delete()
+        .eq('id', id)
+        .select()
+      
+      if (deleteProposalError) {
+        console.error('Error deleting proposal:', deleteProposalError)
+        throw deleteProposalError
+      }
+      
+      console.log('Proposal deletion result:', deleteResult)
+      console.log('Proposal deleted successfully')
+      
+      // Show success message
+      SystemMessages.proposal.deleteSuccess()
+      
+      // Redirect to admin page
+      router.push('/admin')
+    } catch (error) {
+      console.error('Error deleting proposal:', error)
+      SystemMessages.system.operationFailed('Failed to delete proposal')
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteModal(false)
+    }
+  }
+  
   if (isLoading || !proposal) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#080808]">
@@ -140,15 +256,45 @@ export default function ProposalDetailsPage() {
   
   return (
     <div className="p-10">
-      <div className="mb-10 flex items-center space-x-4">
-        <Link href={`/admin/company/${proposal.id}`} className="text-[#FFB900]">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M19 12H5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M12 19L5 12L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </Link>
-        <h1 className="text-white text-3xl font-bold">{proposal.title}</h1>
+      <div className="mb-10 flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Link href={`/admin/company/${proposal.id}`} className="text-[#FFB900]">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M19 12H5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M12 19L5 12L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </Link>
+          <h1 className="text-white text-3xl font-bold">{proposal.title}</h1>
+        </div>
+        
+        <div className="flex items-center space-x-4">
+          <Link 
+            href={`/admin/proposal/${id}/edit`}
+            className="px-4 py-2 bg-[#FFB900] text-black rounded-full hover:bg-[#E6A800] transition-colors"
+          >
+            Edit Proposal
+          </Link>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="px-4 py-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+            disabled={isDeleting}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete Proposal'}
+          </button>
+        </div>
       </div>
+      
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        title="Delete Proposal"
+        message={`Are you sure you want to delete "${proposal.title}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleDeleteProposal}
+        onCancel={() => setShowDeleteModal(false)}
+        isDestructive={true}
+      />
       
       <div className="grid grid-cols-3 gap-8 mb-12">
         <div className="bg-[#121212] border border-white/5 p-6">

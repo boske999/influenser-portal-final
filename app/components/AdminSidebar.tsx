@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -18,6 +19,12 @@ export default function AdminSidebar() {
   const pathname = usePathname()
   const { signOut, user, userData } = useAuth()
   const { unreadCount } = useAdminNotifications()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  
+  // Close mobile menu when path changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false)
+  }, [pathname])
 
   const renderIcon = (icon: string) => {
     switch (icon) {
@@ -69,82 +76,132 @@ export default function AdminSidebar() {
     : user?.email?.charAt(0).toUpperCase() || 'A'
 
   return (
-    <div className="w-64 bg-[#080808] border-r border-white/10 min-h-screen p-6 flex flex-col">
-      {/* Logo */}
-      <div className="mb-10">
-        <Image 
-          src="https://fbmdbvijfufsjpsuorxi.supabase.co/storage/v1/object/public/company-logos/logos/Vector.svg" 
-          alt="Logo" 
-          width={40} 
-          height={40} 
-          className="navbar-logo" 
-        />
+    <>
+      {/* Mobile header with menu toggle */}
+      <div className="md:hidden flex items-center justify-between p-4 bg-background border-b border-white/10 sticky top-0 z-20">
+        <div className="flex items-center">
+          <Image 
+            src="https://fbmdbvijfufsjpsuorxi.supabase.co/storage/v1/object/public/company-logos/logos/Vector.svg" 
+            alt="Logo" 
+            width={32} 
+            height={32} 
+            className="navbar-logo" 
+          />
+          <span className="ml-2 text-xs text-[#FFB900]">Admin</span>
+        </div>
+        <button 
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="text-white p-2"
+          aria-label="Toggle menu"
+        >
+          {isMobileMenuOpen ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 12H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M3 6H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M3 18H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="space-y-2 flex-1">
-        {navigationItems.map((item) => {
-          const isActive = pathname === item.href
-          const isNotification = item.name === 'Notifications'
-          return (
-            <Link 
-              key={item.name} 
-              href={item.href}
-              className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
-                isActive 
-                ? 'text-[#FFB900] bg-white/5' 
-                : 'text-white/60 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <span className={`mr-3 ${isActive ? 'text-[#FFB900]' : 'text-white/60'}`}>
-                {renderIcon(item.icon)}
-              </span>
-              <span className="flex-1">{item.name}</span>
-              {isNotification && unreadCount > 0 && (
-                <span className="flex items-center justify-center h-5 min-w-5 px-1 text-xs font-medium rounded-full bg-[#FFB900] text-black">
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </Link>
-          )
-        })}
-      </nav>
+      {/* Sidebar - hidden on mobile unless menu is open */}
+      <div className={`
+        fixed md:sticky top-0 left-0 z-10 h-full
+        bg-[#080808] border-r border-white/10 
+        transition-all duration-300 ease-in-out overflow-y-auto
+        md:w-64 md:min-h-screen md:p-6 md:flex md:flex-col md:translate-x-0
+        ${isMobileMenuOpen ? 'w-[85%] max-w-xs p-5 translate-x-0' : 'w-0 -translate-x-full'}
+      `}>
+        {/* Logo - hidden on mobile (shown in header) */}
+        <div className="mb-10 hidden md:block">
+          <Image 
+            src="https://fbmdbvijfufsjpsuorxi.supabase.co/storage/v1/object/public/company-logos/logos/Vector.svg" 
+            alt="Logo" 
+            width={40} 
+            height={40} 
+            className="navbar-logo" 
+          />
+        </div>
 
-      {/* User profile */}
-      <div className="mt-auto pt-6 border-t border-white/10">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center text-white">
-            {userData?.avatar_url ? (
-              <Image 
-                src={userData.avatar_url}
-                alt="Admin avatar"
-                width={40}
-                height={40}
-                className="object-cover w-full h-full rounded-full"
-              />
-            ) : (
-              <span>{avatarInitial}</span>
-            )}
+        {/* Navigation */}
+        <nav className={`space-y-3 flex-1 ${isMobileMenuOpen ? 'block' : 'hidden md:block'}`}>
+          {navigationItems.map((item) => {
+            const isActive = pathname === item.href
+            const isNotification = item.name === 'Notifications'
+            return (
+              <Link 
+                key={item.name} 
+                href={item.href}
+                className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
+                  isActive 
+                  ? 'text-[#FFB900] bg-white/5' 
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <span className={`mr-3 ${isActive ? 'text-[#FFB900]' : 'text-white/60'}`}>
+                  {renderIcon(item.icon)}
+                </span>
+                <span className="text-sm md:text-base flex-1">{item.name}</span>
+                {isNotification && unreadCount > 0 && (
+                  <span className="flex items-center justify-center h-5 min-w-5 px-1 text-xs font-medium rounded-full bg-[#FFB900] text-black">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* User profile */}
+        <div className={`mt-auto pt-5 border-t border-white/10 ${isMobileMenuOpen ? 'block' : 'hidden md:block'}`}>
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 md:w-10 md:h-10 bg-gray-700 rounded-full flex items-center justify-center text-white">
+              {userData?.avatar_url ? (
+                <Image 
+                  src={userData.avatar_url}
+                  alt="Admin avatar"
+                  width={40}
+                  height={40}
+                  className="object-cover w-full h-full rounded-full"
+                />
+              ) : (
+                <span>{avatarInitial}</span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">
+                {displayName}
+              </p>
+              <p className="text-xs text-[#FFB900]">Admin</p>
+            </div>
+            <button 
+              onClick={signOut}
+              className="text-gray-400 hover:text-white"
+              aria-label="Sign out"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M7.5 17.5H4.16667C3.72464 17.5 3.30072 17.3244 2.98816 17.0118C2.67559 16.6993 2.5 16.2754 2.5 15.8333V4.16667C2.5 3.72464 2.67559 3.30072 2.98816 2.98816C3.30072 2.67559 3.72464 2.5 4.16667 2.5H7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M13.3333 14.1667L17.5 10L13.3333 5.83334" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M17.5 10H7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">
-              {displayName}
-            </p>
-            <p className="text-xs text-[#FFB900]">Admin</p>
-          </div>
-          <button 
-            onClick={signOut}
-            className="text-gray-400 hover:text-white"
-            aria-label="Sign out"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M7.5 17.5H4.16667C3.72464 17.5 3.30072 17.3244 2.98816 17.0118C2.67559 16.6993 2.5 16.2754 2.5 15.8333V4.16667C2.5 3.72464 2.67559 3.30072 2.98816 2.98816C3.30072 2.67559 3.72464 2.5 4.16667 2.5H7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M13.3333 14.1667L17.5 10L13.3333 5.83334" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M17.5 10H7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
         </div>
       </div>
-    </div>
+      
+      {/* Mobile overlay to close sidebar when clicking outside */}
+      {isMobileMenuOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black/70 z-0"
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+    </>
   )
 } 

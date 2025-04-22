@@ -47,10 +47,12 @@ export default function AdminLayout({
 
   return (
     <AdminNotificationProvider>
-      <div className="flex min-h-screen bg-[#080808]">
+      <div className="app-layout">
         <AdminSidebar />
-        <main className="flex-1">
-          {children}
+        <main className="app-layout-content">
+          <div className="main-content">
+            {children}
+          </div>
         </main>
       </div>
     </AdminNotificationProvider>

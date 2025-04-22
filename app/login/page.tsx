@@ -66,9 +66,9 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Left side - Login form */}
-      <div className="w-1/2 flex items-center justify-center">
-        <div className="max-w-[505px] px-4 py-6 space-y-8">
+      {/* Login form - Takes full width on mobile, half on desktop */}
+      <div className="w-full md:w-1/2 flex items-center justify-center p-4">
+        <div className="w-full max-w-[505px] px-4 py-6 space-y-8">
           {/* Logo */}
           <div className="mb-8">
             <Image 
@@ -147,11 +147,11 @@ export default function Login() {
               )}
             </div>
             
-            {/* Login button and forgot password */}
-            <div className="flex items-center space-x-5">
+            {/* Login button and forgot password - Stack on mobile, side by side on tablet+ */}
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-5">
               <button 
                 type="submit" 
-                className="primary-button w-3/5"
+                className="primary-button w-full sm:w-3/5"
                 disabled={isLoading}
               >
                 <span>{isLoading ? 'Logging in...' : 'Log In'}</span>
@@ -172,7 +172,7 @@ export default function Login() {
                 </svg>
               </button>
               
-              <div className="text-sm text-white">
+              <div className="text-sm text-white text-center sm:text-left">
                 <p>Forgot Password?</p>
                 <p className="text-yellow-400 cursor-pointer" onClick={() => router.push('/reset-password')}>Reset Now</p>
               </div>
@@ -181,8 +181,8 @@ export default function Login() {
         </div>
       </div>
       
-      {/* Right side - Logo image */}
-      <div className="w-1/2 login-bg relative flex items-center justify-center">
+      {/* Logo image - Hidden on mobile, shows on desktop */}
+      <div className="hidden md:block md:w-1/2 login-bg relative">
         <Image 
           src="https://fbmdbvijfufsjpsuorxi.supabase.co/storage/v1/object/public/company-logos/logos/Frame%2022.webp" 
           alt="Logo" 
