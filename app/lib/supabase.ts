@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type User, type Session } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://fbmdbvijfufsjpsuorxi.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZibWRidmlqZnVmc2pwc3VvcnhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUwOTI3NjksImV4cCI6MjA2MDY2ODc2OX0.WpbyAQo8HyoMW1YWGM24MX22rmFth49Zjq17JMAwfGo';
@@ -37,7 +37,12 @@ export async function fetchUserData(userId: string) {
 }
 
 // User sign in and session creation
-export async function signInUser(email: string, password: string) {
+export async function signInUser(email: string, password: string): Promise<{
+  user: User | null;
+  session: Session | null;
+  userData: any | null;
+  error: any | null;
+}> {
   try {
     // Sign in with email and password
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -46,7 +51,7 @@ export async function signInUser(email: string, password: string) {
     });
     
     if (error) {
-      return { user: null, session: null, error };
+      return { user: null, session: null, userData: null, error };
     }
     
     // Fetch user's role
@@ -62,9 +67,9 @@ export async function signInUser(email: string, password: string) {
       };
     }
     
-    return { user: data.user, session: data.session, error: null };
+    return { user: data.user, session: data.session, userData: null, error: null };
   } catch (error: any) {
-    return { user: null, session: null, error };
+    return { user: null, session: null, userData: null, error };
   }
 }
 

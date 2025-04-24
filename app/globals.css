@@ -90,6 +90,13 @@ body {
   padding-bottom: 3px;
 }
 
+.flex-wrap-center{
+  display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+}
+
 .small-item{
   position: relative;
   padding-top:100px;

@@ -116,66 +116,110 @@ export default function Dashboard() {
         // Get current date
         const currentDate = new Date().toISOString().split('T')[0]
         
-        // First, fetch proposals
-        const { data: proposalData, error: proposalError } = await supabase
-          .from('proposals')
-          .select('*')
-          .gte('campaign_end_date', currentDate)
-          .order('created_at', { ascending: false })
-        
-        if (proposalError) {
-          console.error('Error fetching proposals:', proposalError)
-          // Set empty array instead of mock data
-          setProposals([])
-        } else if (proposalData && proposalData.length > 0) {
-          // If we have proposals, fetch responses for this user
-          const proposalIds = proposalData.map(p => p.id)
+        // If user is admin, fetch all proposals
+        if (isAdmin) {
+          const { data: proposalData, error: proposalError } = await supabase
+            .from('proposals')
+            .select('*')
+            .gte('campaign_end_date', currentDate)
+            .order('created_at', { ascending: false })
           
-          const { data: responseData, error: responseError } = await supabase
-            .from('responses')
-            .select(`
-              *,
-              admin_responses(*)
-            `)
-            .eq('user_id', user.id)
-            .in('proposal_id', proposalIds)
-          
-          if (responseError) {
-            console.error('Error fetching responses:', responseError)
-            setProposals(proposalData)
+          if (proposalError) {
+            console.error('Error fetching proposals:', proposalError)
+            setProposals([])
           } else {
-            // Map responses to their proposals
-            const enhancedProposals = proposalData.map(proposal => {
-              const userResponse = responseData?.find(r => r.proposal_id === proposal.id)
-              
-              // Sigurno dobavljanje admin response podataka
-              let adminResponse = null;
-              if (userResponse && userResponse.admin_responses) {
-                // Proveri da li je admin_responses objekat ili niz
-                if (Array.isArray(userResponse.admin_responses)) {
-                  adminResponse = userResponse.admin_responses.length > 0 ? userResponse.admin_responses[0] : null;
-                } else {
-                  adminResponse = userResponse.admin_responses;
-                }
-              }
-              
-              return {
-                ...proposal,
-                user_response: userResponse || null,
-                admin_response: adminResponse
-              }
-            })
-            
-            setProposals(enhancedProposals)
+            setProposals(proposalData || [])
           }
         } else {
-          // Set empty array for no proposals instead of using mock data
-          setProposals([])
+          // For regular users, fetch only proposals they have access to via proposal_visibility table
+          const { data: proposalData, error: proposalError } = await supabase
+            .from('proposal_visibility')
+            .select(`
+              proposal_id,
+              proposals:proposal_id(
+                id, 
+                title, 
+                company_name, 
+                campaign_start_date, 
+                campaign_end_date, 
+                short_description, 
+                created_at
+              )
+            `)
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
+          
+          if (proposalError) {
+            console.error('Error fetching visible proposals:', proposalError)
+            setProposals([])
+          } else if (proposalData && proposalData.length > 0) {
+            // Extract the actual proposal data and filter for active proposals (end date >= current date)
+            const activeProposals: Proposal[] = [];
+            
+            // Process each item and build array of valid proposals
+            proposalData.forEach(item => {
+              if (item.proposals && 
+                  typeof item.proposals === 'object' &&
+                  'id' in item.proposals &&
+                  'campaign_end_date' in item.proposals) {
+                
+                const proposal = item.proposals as unknown as Proposal;
+                if (new Date(proposal.campaign_end_date) >= new Date(currentDate)) {
+                  activeProposals.push(proposal);
+                }
+              }
+            });
+            
+            if (activeProposals.length > 0) {
+              // If we have proposals, fetch responses for this user
+              const proposalIds = activeProposals.map(p => p.id)
+              
+              const { data: responseData, error: responseError } = await supabase
+                .from('responses')
+                .select(`
+                  *,
+                  admin_responses(*)
+                `)
+                .eq('user_id', user.id)
+                .in('proposal_id', proposalIds)
+              
+              if (responseError) {
+                console.error('Error fetching responses:', responseError)
+                setProposals(activeProposals)
+              } else {
+                // Map responses to their proposals
+                const enhancedProposals = activeProposals.map(proposal => {
+                  const userResponse = responseData?.find(r => r.proposal_id === proposal.id)
+                  
+                  // Sigurno dobavljanje admin response podataka
+                  let adminResponse = null;
+                  if (userResponse && userResponse.admin_responses) {
+                    // Proveri da li je admin_responses objekat ili niz
+                    if (Array.isArray(userResponse.admin_responses)) {
+                      adminResponse = userResponse.admin_responses.length > 0 ? userResponse.admin_responses[0] : null;
+                    } else {
+                      adminResponse = userResponse.admin_responses;
+                    }
+                  }
+                  
+                  return {
+                    ...proposal,
+                    user_response: userResponse || null,
+                    admin_response: adminResponse
+                  }
+                })
+                
+                setProposals(enhancedProposals)
+              }
+            } else {
+              setProposals([])
+            }
+          } else {
+            setProposals([])
+          }
         }
-        
       } catch (error) {
         console.error('Error:', error)
-        // Set empty array for errors instead of using mock data
         setProposals([])
       } finally {
         setCheckingRole(false)
@@ -187,7 +231,7 @@ export default function Dashboard() {
     if ((!isLoading || timeoutOccurred) && checkingRole) {
       checkUserRole()
     }
-  }, [user, isLoading, userData, router, checkingRole, timeoutOccurred, fullName])
+  }, [user, isLoading, userData, router, checkingRole, timeoutOccurred, fullName, isAdmin])
 
   // Helper function to check if a proposal is from the last 7 days
   const isRecentProposal = (createdAt: string) => {

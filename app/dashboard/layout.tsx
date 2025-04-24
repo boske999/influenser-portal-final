@@ -1,10 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../context/AuthContext'
 import Sidebar from '../components/Sidebar'
 import { NotificationProvider } from '../context/NotificationContext'
+
+// Create a redirection key unique to this layout to track redirects
+const REDIRECT_KEY = 'dashboard_redirect_check';
 
 export default function DashboardLayout({
   children,
@@ -13,23 +16,47 @@ export default function DashboardLayout({
 }) {
   const { isLoading, isAuthenticated, isAdmin } = useAuth()
   const router = useRouter()
+  const [layoutMounted, setLayoutMounted] = useState(false)
 
+  // On first render, mark that we've performed this check
   useEffect(() => {
-    // Skip if still loading
-    if (isLoading) return;
+    setLayoutMounted(true);
     
-    // If not authenticated, redirect to login
+    // Cleanup to remove the lock when component unmounts
+    return () => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(REDIRECT_KEY);
+      }
+    };
+  }, []);
+
+  // Separate effect for redirection to avoid conflicts
+  useEffect(() => {
+    // Skip if not yet mounted or still loading authentication
+    if (!layoutMounted || isLoading) return;
+    
+    // Prevent multiple redirects in the same session
+    const hasCheckedRedirect = sessionStorage.getItem(REDIRECT_KEY);
+    if (hasCheckedRedirect) return;
+    
+    // Mark that we've performed this check
+    sessionStorage.setItem(REDIRECT_KEY, 'true');
+    
+    // Handle redirects based on authentication and role
     if (!isAuthenticated) {
-      router.push('/login');
+      console.log("Dashboard: User not authenticated, redirecting to login");
+      window.location.replace('/login');
       return;
     }
     
-    // If user is admin, redirect to admin
     if (isAdmin) {
-      router.push('/admin');
+      console.log("Dashboard: User is admin, redirecting to admin panel");
+      window.location.replace('/admin');
       return;
     }
-  }, [isAuthenticated, isAdmin, isLoading, router]);
+
+    console.log("Dashboard: User authenticated and has correct role");
+  }, [isLoading, isAuthenticated, isAdmin, layoutMounted]);
 
   // Show loading spinner while auth status is being checked
   if (isLoading) {

@@ -45,60 +45,91 @@ export default function OldProposalsPage() {
         // Get current date
         const currentDate = new Date().toISOString().split('T')[0]
         
-        // Fetch past proposals (end date < current date)
-        const { data, error } = await supabase
-          .from('proposals')
-          .select('*')
-          .lt('campaign_end_date', currentDate)
-          .order('campaign_end_date', { ascending: false })
+        // Fetch past proposals (end date < current date) from the proposal_visibility table
+        const { data: proposalData, error: proposalError } = await supabase
+          .from('proposal_visibility')
+          .select(`
+            proposal_id,
+            proposals:proposal_id(
+              id, 
+              title, 
+              company_name, 
+              campaign_start_date, 
+              campaign_end_date, 
+              short_description, 
+              created_at
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
         
-        if (error) {
-          console.error('Error fetching past proposals:', error)
-          setProposals([]) // Show empty state instead of mock data
-        } else if (data && data.length > 0) {
-          // If we have proposals, fetch responses for this user
-          const proposalIds = data.map(p => p.id)
+        if (proposalError) {
+          console.error('Error fetching past proposals:', proposalError)
+          setProposals([]) // Show empty state
+        } else if (proposalData && proposalData.length > 0) {
+          // Extract and filter the past proposals (end date < current date)
+          const pastProposals: Proposal[] = [];
           
-          const { data: responseData, error: responseError } = await supabase
-            .from('responses')
-            .select(`
-              *,
-              admin_responses(*)
-            `)
-            .eq('user_id', user.id)
-            .in('proposal_id', proposalIds)
+          // Process each item and build array of valid past proposals
+          proposalData.forEach(item => {
+            if (item.proposals && 
+                typeof item.proposals === 'object' &&
+                'id' in item.proposals &&
+                'campaign_end_date' in item.proposals) {
+              
+              const proposal = item.proposals as unknown as Proposal;
+              if (new Date(proposal.campaign_end_date) < new Date(currentDate)) {
+                pastProposals.push(proposal);
+              }
+            }
+          });
           
-          if (responseError) {
-            console.error('Error fetching responses:', responseError)
-            setProposals(data)
-          } else {
-            // Map responses to their proposals
-            const enhancedProposals = data.map(proposal => {
-              const userResponse = responseData?.find(r => r.proposal_id === proposal.id)
-              
-              // Sigurno dobavljanje admin response podataka
-              let adminResponse = null;
-              if (userResponse && userResponse.admin_responses) {
-                // Proveri da li je admin_responses objekat ili niz
-                if (Array.isArray(userResponse.admin_responses)) {
-                  adminResponse = userResponse.admin_responses.length > 0 ? userResponse.admin_responses[0] : null;
-                } else {
-                  adminResponse = userResponse.admin_responses;
-                }
-              }
-              
-              return {
-                ...proposal,
-                user_response: userResponse || null,
-                admin_response: adminResponse
-              }
-            })
+          if (pastProposals.length > 0) {
+            // If we have proposals, fetch responses for this user
+            const proposalIds = pastProposals.map(p => p.id)
             
-            setProposals(enhancedProposals)
+            const { data: responseData, error: responseError } = await supabase
+              .from('responses')
+              .select(`
+                *,
+                admin_responses(*)
+              `)
+              .eq('user_id', user.id)
+              .in('proposal_id', proposalIds)
+            
+            if (responseError) {
+              console.error('Error fetching responses:', responseError)
+              setProposals(pastProposals)
+            } else {
+              // Map responses to their proposals
+              const enhancedProposals = pastProposals.map(proposal => {
+                const userResponse = responseData?.find(r => r.proposal_id === proposal.id)
+                
+                // Sigurno dobavljanje admin response podataka
+                let adminResponse = null;
+                if (userResponse && userResponse.admin_responses) {
+                  // Proveri da li je admin_responses objekat ili niz
+                  if (Array.isArray(userResponse.admin_responses)) {
+                    adminResponse = userResponse.admin_responses.length > 0 ? userResponse.admin_responses[0] : null;
+                  } else {
+                    adminResponse = userResponse.admin_responses;
+                  }
+                }
+                
+                return {
+                  ...proposal,
+                  user_response: userResponse || null,
+                  admin_response: adminResponse
+                }
+              })
+              
+              setProposals(enhancedProposals)
+            }
+          } else {
+            setProposals([]) // No past proposals
           }
         } else {
-          // No data in database, show empty state instead of mock data
-          setProposals([])
+          setProposals([]) // No data in database
         }
       } catch (error) {
         console.error('Error:', error)

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 interface LoadingTimeoutProps {
   isLoading: boolean;
-  timeoutDuration?: number; // u milisekundama, default 5000ms (5 sekundi)
+  timeoutDuration?: number; // u milisekundama, default 3000ms (3 sekundi)
 }
 
 /**
@@ -13,7 +13,7 @@ interface LoadingTimeoutProps {
  */
 export default function LoadingTimeout({ 
   isLoading, 
-  timeoutDuration = 5000 
+  timeoutDuration = 3000 
 }: LoadingTimeoutProps) {
   const router = useRouter();
   const [timeoutTriggered, setTimeoutTriggered] = useState(false);

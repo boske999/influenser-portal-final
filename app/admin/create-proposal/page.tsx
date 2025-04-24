@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import dynamic from 'next/dynamic'
+import UserSelector from '../../components/UserSelector'
 
 // Dynamically import Quill to avoid SSR issues
 const ReactQuill = dynamic(() => import('react-quill'), { 
@@ -18,6 +19,15 @@ import 'react-quill/dist/quill.snow.css'
 // Import custom editor styles
 import './editor.css'
 
+type FormData = {
+  title: string,
+  company_name: string,
+  campaign_start_date: string,
+  campaign_end_date: string,
+  short_description: string,
+  content: string
+}
+
 export default function CreateProposal() {
   const { user } = useAuth()
   const router = useRouter()
@@ -26,14 +36,7 @@ export default function CreateProposal() {
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [formData, setFormData] = useState({
-    title: '',
-    company_name: '',
-    campaign_start_date: '',
-    campaign_end_date: '',
-    short_description: '',
-    content: '' // This will store our rich text content
-  })
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   
   // State to track if the component is mounted (for client-side rendering)
   const [isMounted, setIsMounted] = useState(false)
@@ -42,6 +45,15 @@ export default function CreateProposal() {
   useEffect(() => {
     setIsMounted(true)
   }, [])
+  
+  const [formData, setFormData] = useState<FormData>({
+    title: '',
+    company_name: '',
+    campaign_start_date: '',
+    campaign_end_date: '',
+    short_description: '',
+    content: ''
+  })
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -105,6 +117,11 @@ export default function CreateProposal() {
     if (error) setError('')
   }
   
+  // Handle user selection change
+  const handleUserSelectionChange = (userIds: string[]) => {
+    setSelectedUsers(userIds)
+  }
+  
   // Validate dates before submission
   const validateDates = (): boolean => {
     // Clear any existing errors
@@ -130,6 +147,15 @@ export default function CreateProposal() {
     return true
   }
   
+  // Validate user selection
+  const validateUserSelection = (): boolean => {
+    if (selectedUsers.length === 0) {
+      setError('Please select at least one user to view this proposal')
+      return false
+    }
+    return true
+  }
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -137,6 +163,9 @@ export default function CreateProposal() {
     
     // Validate dates before proceeding
     if (!validateDates()) return
+    
+    // Validate user selection
+    if (!validateUserSelection()) return
     
     setIsSubmitting(true)
     
@@ -166,46 +195,53 @@ export default function CreateProposal() {
       // Process content to handle any base64 encoded images and upload them to Supabase
       let processedContent = formData.content
       
-      // Check if there are any base64 encoded images in the content
+      // Check if we have any base64 images in the content
       if (formData.content.includes('data:image')) {
-        // Create a temporary DOM element to parse the HTML content
+        // Create a temporary div to parse the HTML content
         const tempDiv = document.createElement('div')
         tempDiv.innerHTML = formData.content
         
-        // Find all image elements with base64 source
+        // Find all img elements with base64 encoded src
         const base64Images = tempDiv.querySelectorAll('img[src^="data:image"]')
         
-        // Upload each base64 image to Supabase
         for (let i = 0; i < base64Images.length; i++) {
           const img = base64Images[i] as HTMLImageElement
-          const base64Str = img.src
           
           try {
-            // Extract file data and type from base64 string
-            const [, dataTypeStr] = base64Str.match(/^data:(image\/\w+);base64,(.*)$/) || []
-            if (!dataTypeStr) continue
+            // Extract the base64 data and file type
+            const base64String = img.src
+            const match = base64String.match(/^data:image\/(\w+);base64,(.*)$/)
             
-            const imageType = dataTypeStr.split(';')[0]
-            const fileExt = imageType.split('/')[1]
-            const base64Data = base64Str.split(',')[1]
+            if (!match) continue
             
-            // Convert base64 to Blob
-            const byteString = atob(base64Data)
-            const arrayBuffer = new ArrayBuffer(byteString.length)
-            const intArray = new Uint8Array(arrayBuffer)
+            const fileType = match[1]
+            const base64Data = match[2]
             
-            for (let j = 0; j < byteString.length; j++) {
-              intArray[j] = byteString.charCodeAt(j)
+            // Convert base64 to blob
+            const byteCharacters = atob(base64Data)
+            const byteArrays = []
+            
+            for (let j = 0; j < byteCharacters.length; j += 512) {
+              const slice = byteCharacters.slice(j, j + 512)
+              
+              const byteNumbers = new Array(slice.length)
+              for (let k = 0; k < slice.length; k++) {
+                byteNumbers[k] = slice.charCodeAt(k)
+              }
+              
+              const byteArray = new Uint8Array(byteNumbers)
+              byteArrays.push(byteArray)
             }
             
-            const blob = new Blob([arrayBuffer], { type: imageType })
-            const file = new File([blob], `image-${Date.now()}.${fileExt}`, { type: imageType })
+            const blob = new Blob(byteArrays, { type: `image/${fileType}` })
             
-            // Upload file to Supabase
-            const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`
+            // Generate a unique file name
+            const fileName = `rich-text-images/${Math.random().toString(36).substring(2, 15)}.${fileType}`
+            
+            // Upload the file to Supabase Storage
             const { error: uploadError } = await supabase.storage
               .from('rich-text')
-              .upload(fileName, file)
+              .upload(fileName, blob)
               
             if (uploadError) throw uploadError
             
@@ -237,7 +273,8 @@ export default function CreateProposal() {
         ]
       }
       
-      const { data, error } = await supabase
+      // Insert the proposal
+      const { data: proposalData, error: proposalError } = await supabase
         .from('proposals')
         .insert({
           title: formData.title,
@@ -251,7 +288,27 @@ export default function CreateProposal() {
         })
         .select()
       
-      if (error) throw error
+      if (proposalError) throw proposalError
+      
+      // Insert records into proposal_visibility for each selected user
+      if (proposalData && proposalData.length > 0) {
+        const proposalId = proposalData[0].id
+        
+        // Create visibility records for each selected user
+        const visibilityRecords = selectedUsers.map(userId => ({
+          proposal_id: proposalId,
+          user_id: userId
+        }))
+        
+        const { error: visibilityError } = await supabase
+          .from('proposal_visibility')
+          .insert(visibilityRecords)
+        
+        if (visibilityError) {
+          console.error('Error setting proposal visibility:', visibilityError)
+          throw visibilityError
+        }
+      }
       
       // Redirect back to admin dashboard on success
       router.push('/admin')
@@ -323,27 +380,23 @@ export default function CreateProposal() {
           
           <div>
             <label htmlFor="logo" className="block text-sm text-[#FFB900] mb-2">Company Logo</label>
-            <div className="flex flex-col space-y-3">
-              {logoPreview ? (
-                <div className="relative w-40 h-40 bg-[rgba(255,255,255,0.04)] border border-white/20 rounded-lg overflow-hidden flex items-center justify-center">
-                  <img 
-                    src={logoPreview} 
-                    alt="Logo preview" 
-                    className="max-w-full max-h-full object-contain" 
-                  />
+            <div className="mt-1">
+              {logoPreview && (
+                <div className="mb-3 relative">
+                  <img src={logoPreview} alt="Logo preview" className="h-32 object-contain bg-white/5 rounded-md p-2" />
                   <button
                     type="button"
                     onClick={handleRemoveLogo}
-                    className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 hover:bg-black/80"
-                    aria-label="Remove logo"
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </button>
                 </div>
-              ) : (
+              )}
+              
+              {!logoPreview && (
                 <div className="flex items-center justify-center w-full">
                   <label htmlFor="logo_file" className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-lg cursor-pointer border-white/20 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)]">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -422,6 +475,13 @@ export default function CreateProposal() {
               onChange={handleChange}
               className="w-full px-3 py-4 rounded-lg bg-[rgba(255,255,255,0.04)] border border-white/20 focus:outline-none text-white h-24"
               placeholder="Enter a brief description of the proposal"
+            />
+          </div>
+          
+          <div>
+            <UserSelector 
+              selectedUsers={selectedUsers}
+              onChange={handleUserSelectionChange}
             />
           </div>
           

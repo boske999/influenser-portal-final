@@ -257,7 +257,7 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
     }
 
     return (
-      <div className="flex flex-col md:flex-row gap-4">
+      <div className="flex flex-col md:flex-row gap-4 flex-wrap-center">
         <button
           onClick={handleApply}
           className="inline-flex items-center justify-center px-8 py-4 bg-[#FFB900] rounded-full text-black font-medium transition-colors hover:bg-[#E0A800]"

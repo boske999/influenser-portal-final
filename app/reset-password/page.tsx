@@ -1,17 +1,54 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
+
+// Create a redirection key unique to this page
+const REDIRECT_KEY = 'reset_password_redirect_check';
 
 export default function ResetPassword() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [pageMounted, setPageMounted] = useState(false)
   
   const router = useRouter()
+  const { isAuthenticated, isAdmin, isLoading: authLoading } = useAuth()
+  
+  // Mark the page as mounted
+  useEffect(() => {
+    setPageMounted(true);
+    
+    // Cleanup to remove the lock when component unmounts
+    return () => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(REDIRECT_KEY);
+      }
+    };
+  }, []);
+  
+  // Handle redirection if already authenticated
+  useEffect(() => {
+    // Skip if auth is still loading or page not mounted
+    if (authLoading || !pageMounted) return;
+    
+    // Prevent multiple redirects
+    const hasRedirected = sessionStorage.getItem(REDIRECT_KEY);
+    if (hasRedirected) return;
+    
+    // If authenticated, redirect to appropriate dashboard
+    if (isAuthenticated) {
+      console.log("Reset Password: User already authenticated, redirecting");
+      sessionStorage.setItem(REDIRECT_KEY, 'true');
+      
+      const destination = isAdmin ? '/admin' : '/dashboard';
+      window.location.replace(destination);
+    }
+  }, [isAuthenticated, isAdmin, authLoading, pageMounted]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,11 +79,20 @@ export default function ResetPassword() {
     }
   }
 
+  // Show loading state if auth is still being checked
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="w-8 h-8 border-t-2 border-white rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-background">
       {/* Left side - Reset Password form */}
-      <div className="w-1/2 flex items-center justify-center">
-        <div className="max-w-[505px] px-4 py-6 space-y-8">
+      <div className="w-full md:w-1/2 flex items-center justify-center">
+        <div className="w-full max-w-[505px] px-4 py-6 space-y-8">
           {/* Logo */}
           <div className="mb-8">
             <Image 
@@ -130,8 +176,8 @@ export default function ResetPassword() {
         </div>
       </div>
       
-      {/* Right side - Logo image */}
-      <div className="w-1/2 login-bg relative flex items-center justify-center">
+      {/* Right side - Logo image - Hidden on mobile */}
+      <div className="hidden md:block md:w-1/2 login-bg relative flex items-center justify-center">
         <Image 
           src="https://fbmdbvijfufsjpsuorxi.supabase.co/storage/v1/object/public/company-logos/logos/Frame%2022.webp" 
           alt="Logo" 

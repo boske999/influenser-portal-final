@@ -17,7 +17,7 @@ type AuthContextType = {
   session: Session | null;
   userData: UserData | null;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: any | null; userData?: UserData | null }>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -63,6 +63,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (error) {
         console.error("Error getting session:", error.message);
+        setIsLoading(false);
+        return;
       }
       
       console.log("Session check completed:", { 
@@ -83,10 +85,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(session.user);
       setSession(session);
       
-      // Fetch user data from the database
-      const userData = await fetchUserData(session.user.id);
-      console.log("Retrieved user data:", userData);
-      setUserData(userData as UserData | null);
+      try {
+        // Fetch user data from the database
+        const userData = await fetchUserData(session.user.id);
+        console.log("Retrieved user data:", userData);
+        setUserData(userData as UserData | null);
+      } catch (userDataError) {
+        console.error("Error fetching user data:", userDataError);
+        // Continue even if user data fetch fails - just set userData to null
+        setUserData(null);
+      }
       
     } catch (error) {
       console.error("Error initializing authentication:", error);
@@ -149,12 +157,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         role: userData?.role 
       });
       
+      // Set all data immediately
       setUser(user);
       setSession(session);
       setUserData(userData as UserData | null);
       
+      // Wait a short time to ensure state is updated before component responds
+      // This helps with redirection logic in the login component
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Let middleware handle the redirect
-      return { error: null };
+      return { error: null, userData };
     } catch (error) {
       console.error("Exception during sign in:", error);
       return { error };

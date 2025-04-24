@@ -7,26 +7,51 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import AlertUtils from '../components/AlertUtils'
 import { Toaster } from 'react-hot-toast'
 
+// Create a redirection key unique to this page
+const REDIRECT_KEY = 'login_redirect_check';
+
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [pageMounted, setPageMounted] = useState(false)
   
-  const { signIn, isAuthenticated, userData } = useAuth()
+  const { signIn, isAuthenticated, userData, isLoading: authLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Handle authenticated user redirects
+  // Mark the page as mounted
   useEffect(() => {
-    // If authenticated, redirect to appropriate page
+    setPageMounted(true);
+    
+    // Cleanup to remove the lock when component unmounts
+    return () => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(REDIRECT_KEY);
+      }
+    };
+  }, []);
+  
+  // Handle redirection if already authenticated
+  useEffect(() => {
+    // Skip if auth is still loading or page not mounted
+    if (authLoading || !pageMounted) return;
+    
+    // Prevent multiple redirects
+    const hasRedirected = sessionStorage.getItem(REDIRECT_KEY);
+    if (hasRedirected) return;
+    
+    // If authenticated, redirect to appropriate dashboard
     if (isAuthenticated) {
-      const destination = userData?.role === 'admin' ? '/admin' : '/dashboard'
-      setTimeout(() => {
-        router.push(destination)
-      }, 1000)
+      console.log("Login: User already authenticated, redirecting");
+      sessionStorage.setItem(REDIRECT_KEY, 'true');
+      
+      const destination = userData?.role === 'admin' ? '/admin' : '/dashboard';
+      console.log("Login: Redirecting to", destination);
+      window.location.replace(destination);
     }
-  }, [isAuthenticated, userData, router])
+  }, [isAuthenticated, userData, authLoading, pageMounted]);
 
   // Check for message in URL
   useEffect(() => {
@@ -47,19 +72,34 @@ export default function Login() {
     setIsLoading(true)
     
     try {
-      const { error } = await signIn(email, password)
+      console.log("Login: Beginning sign in process");
+      const { error, userData: returnedUserData } = await signIn(email, password)
       
       if (error) {
+        console.log("Login: Sign in failed with error", error);
         AlertUtils.error('Login Failed', error.message || 'Invalid email or password')
       } else {
+        console.log("Login: Sign in successful, userData:", returnedUserData);
         AlertUtils.success('Login Successful', 'Welcome back!')
-        // Client-side redirect will be handled by useEffect watching isAuthenticated
+        
+        // Let the useEffect handle redirection to avoid duplicated logic
+        // The useEffect will notice the authentication state change and redirect
       }
     } catch (err) {
+      console.log("Login: Exception during sign in", err);
       AlertUtils.error('Error', 'An unexpected error occurred')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Show loading state if auth is still being checked
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="w-8 h-8 border-t-2 border-white rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
   return (

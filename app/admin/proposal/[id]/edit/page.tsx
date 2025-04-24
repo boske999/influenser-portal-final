@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '../../../../context/AuthContext'
 import { supabase } from '../../../../lib/supabase'
 import dynamic from 'next/dynamic'
+import UserSelector from '../../../../components/UserSelector'
 
 // Dynamically import Quill to avoid SSR issues
 const ReactQuill = dynamic(() => import('react-quill'), { 
@@ -18,6 +19,15 @@ import 'react-quill/dist/quill.snow.css'
 // Import custom editor styles
 import '../../../create-proposal/editor.css'
 
+type FormData = {
+  title: string,
+  company_name: string,
+  campaign_start_date: string,
+  campaign_end_date: string,
+  short_description: string,
+  content: string
+}
+
 export default function EditProposal() {
   const { user } = useAuth()
   const router = useRouter()
@@ -27,16 +37,18 @@ export default function EditProposal() {
   const [error, setError] = useState('')
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
-  const [existingLogoUrl, setExistingLogoUrl] = useState<string | null>(null)
+  const [currentLogoUrl, setCurrentLogoUrl] = useState<string | null>(null)
   const [logoChanged, setLogoChanged] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [formData, setFormData] = useState({
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+  
+  const [formData, setFormData] = useState<FormData>({
     title: '',
     company_name: '',
     campaign_start_date: '',
     campaign_end_date: '',
     short_description: '',
-    content: '' // This will store our rich text content
+    content: ''
   })
   
   // State to track if the component is mounted (for client-side rendering)
@@ -49,55 +61,69 @@ export default function EditProposal() {
 
   // Fetch the proposal data
   useEffect(() => {
-    const fetchProposal = async () => {
-      if (!id) return
-      
+    const fetchProposalDetails = async () => {
+      if (!user) {
+        router.push('/login')
+        return
+      }
+
       try {
-        const { data, error } = await supabase
+        // Fetch proposal details
+        const { data: proposalData, error: proposalError } = await supabase
           .from('proposals')
           .select('*')
           .eq('id', id)
           .single()
         
-        if (error) {
-          console.error('Error fetching proposal:', error)
-          setError('Failed to load proposal data')
-          router.push('/admin')
+        if (proposalError) {
+          console.error('Error fetching proposal details:', proposalError)
+          // Use default values if error
+          setIsLoading(false)
           return
         }
         
-        if (data) {
-          // Format dates for input fields (YYYY-MM-DD)
-          const formatDate = (dateString: string) => {
-            const date = new Date(dateString)
-            return date.toISOString().split('T')[0]
-          }
-          
-          setFormData({
-            title: data.title || '',
-            company_name: data.company_name || '',
-            campaign_start_date: formatDate(data.campaign_start_date),
-            campaign_end_date: formatDate(data.campaign_end_date),
-            short_description: data.short_description || '',
-            content: data.content?.html || data.content?.blocks?.[0]?.content || ''
-          })
-          
-          // Set logo preview if exists
-          if (data.logo_url) {
-            setLogoPreview(data.logo_url)
-            setExistingLogoUrl(data.logo_url)
-          }
+        // Set form data from fetched proposal
+        setFormData({
+          title: proposalData.title || '',
+          company_name: proposalData.company_name || '',
+          campaign_start_date: proposalData.campaign_start_date || '',
+          campaign_end_date: proposalData.campaign_end_date || '',
+          short_description: proposalData.short_description || '',
+          content: proposalData.content?.html || ''
+        })
+        
+        // Set logo preview if available
+        if (proposalData.logo_url) {
+          setCurrentLogoUrl(proposalData.logo_url)
+          setLogoPreview(proposalData.logo_url)
         }
+        
+        // Fetch the users who can see this proposal
+        const { data: visibilityData, error: visibilityError } = await supabase
+          .from('proposal_visibility')
+          .select('user_id')
+          .eq('proposal_id', id)
+        
+        if (visibilityError) {
+          console.error('Error fetching proposal visibility:', visibilityError)
+        } else {
+          // Set selected users
+          setSelectedUsers(visibilityData.map(item => item.user_id))
+        }
+        
+        setIsLoading(false)
       } catch (error) {
-        console.error('Error fetching proposal:', error)
-        setError('Failed to load proposal data')
-      } finally {
+        console.error('Error:', error)
         setIsLoading(false)
       }
     }
+
+    if (user) {
+      fetchProposalDetails()
+    }
     
-    fetchProposal()
-  }, [id, router])
+    setIsMounted(true)
+  }, [id, user, router])
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -163,6 +189,11 @@ export default function EditProposal() {
     if (error) setError('')
   }
   
+  // Handle user selection change
+  const handleUserSelectionChange = (userIds: string[]) => {
+    setSelectedUsers(userIds)
+  }
+  
   // Validate dates before submission
   const validateDates = (): boolean => {
     // Clear any existing errors
@@ -188,6 +219,15 @@ export default function EditProposal() {
     return true
   }
   
+  // Validate user selection
+  const validateUserSelection = (): boolean => {
+    if (selectedUsers.length === 0) {
+      setError('Please select at least one user to view this proposal')
+      return false
+    }
+    return true
+  }
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -196,81 +236,84 @@ export default function EditProposal() {
     // Validate dates before proceeding
     if (!validateDates()) return
     
+    // Validate user selection
+    if (!validateUserSelection()) return
+    
     setIsSubmitting(true)
     
     try {
-      let logo_url = existingLogoUrl;
+      let logo_url = currentLogoUrl;
       
-      // Only handle logo if it was changed
-      if (logoChanged) {
-        // If logo was removed
-        if (!logoFile) {
-          logo_url = null;
-        } 
-        // If new logo was uploaded
-        else if (logoFile) {
-          const fileExt = logoFile.name.split('.').pop()
-          const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`
-          const filePath = `logos/${fileName}`
+      // Upload the logo file if one is selected
+      if (logoFile) {
+        const fileExt = logoFile.name.split('.').pop()
+        const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`
+        const filePath = `logos/${fileName}`
+        
+        const { error: uploadError, data } = await supabase.storage
+          .from('company-logos')
+          .upload(filePath, logoFile)
           
-          const { error: uploadError, data } = await supabase.storage
-            .from('company-logos')
-            .upload(filePath, logoFile)
-            
-          if (uploadError) throw uploadError
+        if (uploadError) throw uploadError
+        
+        // Get public URL for the uploaded file
+        const { data: { publicUrl } } = supabase.storage
+          .from('company-logos')
+          .getPublicUrl(filePath)
           
-          // Get public URL for the uploaded file
-          const { data: { publicUrl } } = supabase.storage
-            .from('company-logos')
-            .getPublicUrl(filePath)
-            
-          logo_url = publicUrl
-        }
+        logo_url = publicUrl
       }
-      
+
       // Process content to handle any base64 encoded images and upload them to Supabase
       let processedContent = formData.content
       
-      // Check if there are any base64 encoded images in the content
+      // Check if we have any base64 images in the content
       if (formData.content.includes('data:image')) {
-        // Create a temporary DOM element to parse the HTML content
+        // Create a temporary div to parse the HTML content
         const tempDiv = document.createElement('div')
         tempDiv.innerHTML = formData.content
         
-        // Find all image elements with base64 source
+        // Find all img elements with base64 encoded src
         const base64Images = tempDiv.querySelectorAll('img[src^="data:image"]')
         
-        // Upload each base64 image to Supabase
         for (let i = 0; i < base64Images.length; i++) {
           const img = base64Images[i] as HTMLImageElement
-          const base64Str = img.src
           
           try {
-            // Extract file data and type from base64 string
-            const [, dataTypeStr] = base64Str.match(/^data:(image\/\w+);base64,(.*)$/) || []
-            if (!dataTypeStr) continue
+            // Extract the base64 data and file type
+            const base64String = img.src
+            const match = base64String.match(/^data:image\/(\w+);base64,(.*)$/)
             
-            const imageType = dataTypeStr.split(';')[0]
-            const fileExt = imageType.split('/')[1]
-            const base64Data = base64Str.split(',')[1]
+            if (!match) continue
             
-            // Convert base64 to Blob
-            const byteString = atob(base64Data)
-            const arrayBuffer = new ArrayBuffer(byteString.length)
-            const intArray = new Uint8Array(arrayBuffer)
+            const fileType = match[1]
+            const base64Data = match[2]
             
-            for (let j = 0; j < byteString.length; j++) {
-              intArray[j] = byteString.charCodeAt(j)
+            // Convert base64 to blob
+            const byteCharacters = atob(base64Data)
+            const byteArrays = []
+            
+            for (let j = 0; j < byteCharacters.length; j += 512) {
+              const slice = byteCharacters.slice(j, j + 512)
+              
+              const byteNumbers = new Array(slice.length)
+              for (let k = 0; k < slice.length; k++) {
+                byteNumbers[k] = slice.charCodeAt(k)
+              }
+              
+              const byteArray = new Uint8Array(byteNumbers)
+              byteArrays.push(byteArray)
             }
             
-            const blob = new Blob([arrayBuffer], { type: imageType })
-            const file = new File([blob], `image-${Date.now()}.${fileExt}`, { type: imageType })
+            const blob = new Blob(byteArrays, { type: `image/${fileType}` })
             
-            // Upload file to Supabase
-            const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`
+            // Generate a unique file name
+            const fileName = `rich-text-images/${Math.random().toString(36).substring(2, 15)}.${fileType}`
+            
+            // Upload the file to Supabase Storage
             const { error: uploadError } = await supabase.storage
               .from('rich-text')
-              .upload(fileName, file)
+              .upload(fileName, blob)
               
             if (uploadError) throw uploadError
             
@@ -302,25 +345,51 @@ export default function EditProposal() {
         ]
       }
       
-      const { data, error } = await supabase
+      // Update the proposal
+      const { error: updateError } = await supabase
         .from('proposals')
         .update({
           title: formData.title,
-          logo_url, // Use the uploaded file URL or existing one
+          logo_url,
           company_name: formData.company_name,
           campaign_start_date: formData.campaign_start_date,
           campaign_end_date: formData.campaign_end_date,
           short_description: formData.short_description,
-          content: contentJson,
-          updated_at: new Date().toISOString()
+          content: contentJson
         })
         .eq('id', id)
-        .select()
       
-      if (error) throw error
+      if (updateError) throw updateError
       
-      // Redirect back to proposal responses page on success
-      router.push(`/admin/proposal/${id}/responses`)
+      // Update the proposal visibility
+      // First delete all existing records
+      const { error: deleteError } = await supabase
+        .from('proposal_visibility')
+        .delete()
+        .eq('proposal_id', id)
+      
+      if (deleteError) {
+        console.error('Error deleting existing visibility records:', deleteError)
+        throw deleteError
+      }
+      
+      // Then insert new records
+      const visibilityRecords = selectedUsers.map(userId => ({
+        proposal_id: id,
+        user_id: userId
+      }))
+      
+      const { error: visibilityError } = await supabase
+        .from('proposal_visibility')
+        .insert(visibilityRecords)
+      
+      if (visibilityError) {
+        console.error('Error setting proposal visibility:', visibilityError)
+        throw visibilityError
+      }
+      
+      // Redirect back to admin dashboard on success
+      router.push('/admin')
     } catch (error: any) {
       console.error('Error updating proposal:', error)
       
@@ -397,27 +466,27 @@ export default function EditProposal() {
           
           <div>
             <label htmlFor="logo" className="block text-sm text-[#FFB900] mb-2">Company Logo</label>
-            <div className="flex flex-col space-y-3">
-              {logoPreview ? (
-                <div className="relative w-40 h-40 bg-[rgba(255,255,255,0.04)] border border-white/20 rounded-lg overflow-hidden flex items-center justify-center">
+            <div className="mt-1">
+              {(logoPreview || currentLogoUrl) && (
+                <div className="mb-3 relative">
                   <img 
-                    src={logoPreview} 
+                    src={logoPreview || currentLogoUrl || ''} 
                     alt="Logo preview" 
-                    className="max-w-full max-h-full object-contain" 
+                    className="h-32 object-contain bg-white/5 rounded-md p-2" 
                   />
                   <button
                     type="button"
                     onClick={handleRemoveLogo}
-                    className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 hover:bg-black/80"
-                    aria-label="Remove logo"
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </button>
                 </div>
-              ) : (
+              )}
+              
+              {!logoPreview && !currentLogoUrl && (
                 <div className="flex items-center justify-center w-full">
                   <label htmlFor="logo_file" className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-lg cursor-pointer border-white/20 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)]">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -514,6 +583,13 @@ export default function EditProposal() {
                 />
               </div>
             )}
+          </div>
+          
+          <div>
+            <UserSelector 
+              selectedUsers={selectedUsers}
+              onChange={handleUserSelectionChange}
+            />
           </div>
         </div>
         
