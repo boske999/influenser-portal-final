@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '../context/AuthContext'
 import { useAdminNotifications } from '../context/AdminNotificationContext'
+import { ProposalUnavailableMessage } from './UnavailableMessages'
 
 const navigationItems = [
   { name: 'Dashboard', href: '/admin', icon: 'home' },
@@ -74,6 +75,10 @@ export default function AdminSidebar() {
   const avatarInitial = userData?.full_name 
     ? userData.full_name.charAt(0).toUpperCase() 
     : user?.email?.charAt(0).toUpperCase() || 'A'
+
+  if (!userData) {
+    return <ProposalUnavailableMessage />;
+  }
 
   return (
     <>

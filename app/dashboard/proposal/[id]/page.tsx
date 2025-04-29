@@ -57,23 +57,15 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
         if (proposalError) {
           console.error('Error fetching proposal details:', proposalError)
           
-          // Use mock data if database query fails
-          const mockProposal = {
-            id: params.id,
-            title: 'Heading Example',
-            company_name: 'Senergy Capital',
-            campaign_start_date: '2023-03-15',
-            campaign_end_date: '2023-03-20',
-            content: {
-              html: '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p><ul><li>Lorem ipsum</li><li>Lorem ipsum</li><li>Lorem ipsum</li><li>Lorem ipsum</li><li>Lorem ipsum</li></ul>',
-              type: 'doc',
-              blocks: []
-            },
-            created_at: '2023-03-01',
-            logo_url: 'https://fbmdbvijfufsjpsuorxi.supabase.co/storage/v1/object/public/company-logos/logos/Vector.svg'
+          // Check if error is because item was not found
+          if (proposalError.code === 'PGRST116') {
+            // Proposal not found - set proposal to null
+            setProposal(null)
+          } else {
+            // Other database error occurred
+            console.error('Database error:', proposalError)
+            setProposal(null)
           }
-          
-          setProposal(mockProposal)
         } else {
           setProposal(proposalData)
           
@@ -86,20 +78,24 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
           }
         }
 
-        // Check if user has already responded to this proposal
-        const { data: responseData, error: responseError } = await supabase
-          .from('responses')
-          .select('*')
-          .eq('proposal_id', params.id)
-          .eq('user_id', user.id)
-          .single()
-        
-        if (!responseError && responseData) {
-          console.log('Response data:', responseData)
-          setResponse(responseData)
+        // If a valid proposal was found, check for user response
+        if (proposalData) {
+          // Check if user has already responded to this proposal
+          const { data: responseData, error: responseError } = await supabase
+            .from('responses')
+            .select('*')
+            .eq('proposal_id', params.id)
+            .eq('user_id', user.id)
+            .single()
+          
+          if (!responseError && responseData) {
+            console.log('Response data:', responseData)
+            setResponse(responseData)
+          }
         }
       } catch (error) {
         console.error('Error:', error)
+        setProposal(null)
       } finally {
         setLoading(false)
       }
