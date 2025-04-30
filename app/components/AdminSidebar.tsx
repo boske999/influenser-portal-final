@@ -12,6 +12,7 @@ const navigationItems = [
   { name: 'Dashboard', href: '/admin', icon: 'home' },
   { name: 'Create Proposal', href: '/admin/create-proposal', icon: 'proposal' },
   { name: 'Old Proposals', href: '/admin/old-proposals', icon: 'proposal' },
+  { name: 'Chats', href: '/admin/chats', icon: 'chat' },
   { name: 'Notifications', href: '/admin/notifications', icon: 'notification' },
   { name: 'Settings', href: '/admin/settings', icon: 'settings' },
 ]
@@ -39,6 +40,12 @@ export default function AdminSidebar() {
         return (
           <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M19.25 12.8333V5.5C19.25 3.61667 18.6517 2.75 16.5 2.75H14.6667C12.5149 2.75 11.9166 3.61667 11.9166 5.5V7.33333H8.25C6.09812 7.33333 5.49984 8.2 5.49984 10.0833V12.8333H2.74984V16.5C2.74984 18.3834 3.34811 19.25 5.49984 19.25H7.33317C9.4849 19.25 10.0832 18.3834 10.0832 16.5V10.0833C10.0832 8.2 9.4849 7.33333 7.33317 7.33333H5.49984V5.5C5.49984 3.61667 6.09812 2.75 8.25 2.75H16.5C18.6517 2.75 19.25 3.61667 19.25 5.5V12.8333H16.5V16.5C16.5 18.3834 17.0982 19.25 19.25 19.25H21.0833" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )
+      case 'chat':
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 11.5C21.0034 12.8199 20.6951 14.1219 20.1 15.3C19.3944 16.7118 18.3098 17.8992 16.9674 18.7293C15.6251 19.5594 14.0782 19.9994 12.5 20C11.1801 20.0035 9.87812 19.6951 8.7 19.1L3 21L4.9 15.3C4.30493 14.1219 3.99656 12.8199 4 11.5C4.00061 9.92176 4.44061 8.37488 5.27072 7.03258C6.10083 5.69028 7.28825 4.6056 8.7 3.90003C9.87812 3.30496 11.1801 2.99659 12.5 3.00003H13C15.0843 3.11502 17.053 3.99479 18.5291 5.47089C20.0052 6.94699 20.885 8.91568 21 11V11.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         )
       case 'response':
