@@ -26,6 +26,11 @@ type Response = {
   proposal_id: string
   status: string
   created_at: string
+  admin_response?: {
+    id: string | null
+    status: 'pending' | 'approved' | 'rejected'
+    message_to_user: string | null
+  } | null
 }
 
 export default function ProposalDetailPage({ params }: { params: { id: string } }) {
@@ -90,7 +95,23 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
           
           if (!responseError && responseData) {
             console.log('Response data:', responseData)
-            setResponse(responseData)
+            
+            // Fetch admin response if exists
+            const { data: adminResponseData, error: adminResponseError } = await supabase
+              .from('admin_responses')
+              .select('id, status, message_to_user')
+              .eq('response_id', responseData.id)
+              .maybeSingle()
+              
+            if (adminResponseError) {
+              console.error('Error fetching admin response:', adminResponseError)
+            }
+            
+            // Combine the data
+            setResponse({
+              ...responseData,
+              admin_response: adminResponseData || null
+            })
           }
         }
       } catch (error) {
@@ -229,20 +250,45 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
     }
     
     if (response) {
+      // Check if admin has updated the response or the response is in pending_update state
+      const isAdminResponsePending = response.admin_response?.status === 'pending';
+      const isPendingUpdate = response.status === 'pending_update';
+      const canEditResponse = isAdminResponsePending || isPendingUpdate;
+      
       return (
         <div className="space-y-4">
           <div className="bg-[#1A1A1A] p-4 rounded-lg mb-4">
             <p className="text-center text-white">
               {response.status === 'accepted' 
                 ? 'You have applied to this offer' 
+                : response.status === 'pending'
+                ? 'Your response is pending review'
+                : response.status === 'pending_update'
+                ? 'The admin has requested updates to your response'
                 : 'You have declined this offer'}
             </p>
             <p className="text-center text-gray-400 text-sm mt-2">
               Submitted on {new Date(response.created_at).toLocaleDateString()}
             </p>
+            {canEditResponse && (
+              <p className="text-center text-[#FFB900] text-sm mt-2">
+                {isPendingUpdate 
+                  ? 'The admin has requested changes. Please update your response.' 
+                  : 'The admin has updated their response. You can edit your response.'}
+              </p>
+            )}
           </div>
           
           <div className="flex flex-col space-y-3">
+            {canEditResponse && (
+              <Link
+                href={`/dashboard/edit-response?id=${response.id}`}
+                className="w-full flex items-center justify-center space-x-2 px-8 py-4 bg-[#FFB900] rounded-full hover:bg-[#E6A800] transition-colors"
+              >
+                <span className="text-black font-medium">Edit Response</span>
+              </Link>
+            )}
+            
             <Link
               href={`/dashboard/view-response?id=${response.id}`}
               className="w-full flex items-center justify-center space-x-2 px-8 py-4 bg-[#FFB900] rounded-full hover:bg-[#E6A800] transition-colors"

@@ -41,11 +41,20 @@ type ProcessedChat = {
   latestMessage: any | null;
   unreadCount: number;
   created_at: string;
+  userEmail: string | null;
+};
+
+type GroupedChats = {
+  [proposalId: string]: {
+    proposalName: string;
+    chats: ProcessedChat[];
+  };
 };
 
 export default function AdminChatsPage() {
   const [loading, setLoading] = useState(true);
   const [chats, setChats] = useState<ProcessedChat[]>([]);
+  const [groupedChats, setGroupedChats] = useState<GroupedChats>({});
   const router = useRouter();
   const { user } = useAuth();
 
@@ -97,17 +106,38 @@ export default function AdminChatsPage() {
           const latestMessage = sortedMessages[0] || null;
           const unreadCount = messages.filter((msg: any) => !msg.is_read && msg.user_id !== user.id).length;
           
+          // Find the user who is not the admin (to get the chat name)
+          const userMessage = messages.find((msg: ChatMessage) => msg.user_id !== user.id);
+          const userEmail = userMessage?.users?.email || null;
+          
           return {
             id: chat.id,
             proposalId: chat.proposal_id,
             proposalName: chat.proposals?.title || 'Unnamed Proposal',
             latestMessage,
             unreadCount,
-            created_at: chat.created_at
+            created_at: chat.created_at,
+            userEmail
           };
         });
         
         setChats(processedChats);
+        
+        // Group chats by proposal
+        const grouped: GroupedChats = {};
+        
+        processedChats.forEach(chat => {
+          if (!grouped[chat.proposalId]) {
+            grouped[chat.proposalId] = {
+              proposalName: chat.proposalName,
+              chats: []
+            };
+          }
+          
+          grouped[chat.proposalId].chats.push(chat);
+        });
+        
+        setGroupedChats(grouped);
       } catch (err) {
         console.error('Error fetching chats:', err);
       } finally {
@@ -137,48 +167,58 @@ export default function AdminChatsPage() {
     <div className="min-h-screen p-6 bg-background text-white">
       <h1 className="text-2xl font-bold mb-6">Chats</h1>
       
-      {chats.length === 0 ? (
+      {Object.keys(groupedChats).length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-gray-400">
           <p>No chats available</p>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {chats.map(chat => (
-            <div
-              key={chat.id}
-              onClick={() => handleChatClick(chat.id, chat.proposalId)}
-              className="bg-[#121212] border border-white/10 rounded-lg p-4 cursor-pointer hover:bg-[#1A1A1A] transition-colors"
-            >
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="font-medium text-white">
-                  {chat.proposalName}
-                </h3>
-                {chat.unreadCount > 0 && (
-                  <span className="bg-[#FFB900] text-black text-xs font-medium px-2 py-1 rounded-full">
-                    {chat.unreadCount}
-                  </span>
-                )}
-              </div>
+        <div className="grid gap-6">
+          {Object.entries(groupedChats).map(([proposalId, group]) => (
+            <div key={proposalId} className="bg-[#121212] border border-white/10 rounded-lg p-4">
+              <h2 className="text-xl font-bold mb-4 text-[#FFB900] border-b border-white/10 pb-2">
+                {group.proposalName}
+              </h2>
               
-              <div className="text-sm text-gray-400 mb-1">
-                {chat.latestMessage ? (
-                  <>
-                    <span className="font-medium">
-                      {chat.latestMessage.users?.full_name || chat.latestMessage.users?.email || 'Unknown'}:
-                    </span>{' '}
-                    {chat.latestMessage.message.length > 60 
-                      ? `${chat.latestMessage.message.substring(0, 60)}...` 
-                      : chat.latestMessage.message}
-                  </>
-                ) : (
-                  <span>No messages yet</span>
-                )}
-              </div>
-              
-              <div className="text-xs text-gray-500">
-                {chat.latestMessage 
-                  ? new Date(chat.latestMessage.created_at).toLocaleString() 
-                  : new Date(chat.created_at).toLocaleString()}
+              <div className="grid gap-3">
+                {group.chats.map(chat => (
+                  <div
+                    key={chat.id}
+                    onClick={() => handleChatClick(chat.id, chat.proposalId)}
+                    className="bg-[#1A1A1A] border border-white/5 rounded-lg p-3 cursor-pointer hover:bg-[#242424] transition-colors"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="font-medium text-sm text-white/80">
+                        Chat name: {chat.userEmail || 'Unknown user'}
+                      </div>
+                      {chat.unreadCount > 0 && (
+                        <span className="bg-[#FFB900] text-black text-xs font-medium px-2 py-1 rounded-full">
+                          {chat.unreadCount}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="text-sm text-gray-400 mb-1">
+                      {chat.latestMessage ? (
+                        <>
+                          <span className="font-medium text-white">
+                            {chat.latestMessage.users?.email || 'Unknown'}:
+                          </span>{' '}
+                          {chat.latestMessage.message.length > 60 
+                            ? `${chat.latestMessage.message.substring(0, 60)}...` 
+                            : chat.latestMessage.message}
+                        </>
+                      ) : (
+                        <span>No messages yet</span>
+                      )}
+                    </div>
+                    
+                    <div className="text-xs text-gray-500">
+                      {chat.latestMessage 
+                        ? new Date(chat.latestMessage.created_at).toLocaleString() 
+                        : new Date(chat.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}

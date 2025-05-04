@@ -13,6 +13,43 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// Ensure chat bucket exists
+export async function ensureChatBucketExists() {
+  try {
+    // Check if the bucket already exists
+    const { data: bucketData, error: bucketError } = await supabase
+      .storage
+      .getBucket('chat');
+    
+    if (bucketError && bucketError.message.includes('does not exist')) {
+      // Create bucket if it doesn't exist
+      const { data, error } = await supabase
+        .storage
+        .createBucket('chat', {
+          public: false,
+          fileSizeLimit: 20971520, // 20MB
+        });
+      
+      if (error) {
+        console.error('Error creating chat bucket:', error);
+        return false;
+      }
+      
+      console.log('Chat bucket created successfully');
+      return true;
+    } else if (bucketError) {
+      console.error('Error checking chat bucket:', bucketError);
+      return false;
+    }
+    
+    // Bucket exists
+    return true;
+  } catch (err) {
+    console.error('Exception while ensuring chat bucket exists:', err);
+    return false;
+  }
+}
+
 // Helper function to fetch user data from the database
 export async function fetchUserData(userId: string) {
   if (!userId) return null;

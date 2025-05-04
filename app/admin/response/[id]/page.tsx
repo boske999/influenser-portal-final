@@ -5,10 +5,11 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '../../../context/AuthContext'
 import { supabase } from '../../../lib/supabase'
+import LoadingTimeout from '../../../components/LoadingTimeout'
 
 type ResponseDetail = {
   id: string
-  status: 'accepted' | 'rejected'
+  status: 'accepted' | 'rejected' | 'pending' | 'pending_update'
   quote: string
   proposed_publish_date: string | null
   platforms: string[]
@@ -40,6 +41,7 @@ export default function ResponseDetailPage() {
   const [responseAction, setResponseAction] = useState<'approved' | 'rejected'>('approved')
   const [adminMessage, setAdminMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isUpdateAction, setIsUpdateAction] = useState(false)
   
   useEffect(() => {
     const fetchResponseDetails = async () => {
@@ -147,6 +149,11 @@ export default function ResponseDetailPage() {
       // Check if admin response already exists
       const adminResponseExists = response.admin_response?.id
       
+      // Only set response to pending_update if this is an Update Response action and message changed
+      const isUpdatingExistingResponse = adminResponseExists && 
+                                        response.admin_response?.message_to_user !== adminMessage &&
+                                        isUpdateAction;
+      
       if (adminResponseExists) {
         // Update existing admin response
         const { error } = await supabase
@@ -158,8 +165,44 @@ export default function ResponseDetailPage() {
           .eq('id', adminResponseExists)
         
         if (error) throw error
+        
+        // Only set response to pending_update if admin clicked Update Response and changed the message
+        if (isUpdatingExistingResponse) {
+          // Set the user's response to pending_update
+          const { error: responseUpdateError } = await supabase
+            .from('responses')
+            .update({
+              status: 'pending_update',
+            })
+            .eq('id', response.id)
+          
+          if (responseUpdateError) {
+            console.error('Error updating response status:', responseUpdateError)
+          }
+          
+          // Update local state to reflect pending_update status
+          setResponse({
+            ...response,
+            status: 'pending_update',
+            admin_response: {
+              id: response.admin_response?.id || null,
+              status: responseAction,
+              message_to_user: adminMessage
+            }
+          })
+        } else {
+          // Just update the admin response info without changing user's response status
+          setResponse({
+            ...response,
+            admin_response: {
+              id: response.admin_response?.id || null,
+              status: responseAction,
+              message_to_user: adminMessage
+            }
+          })
+        }
       } else {
-        // Create new admin response
+        // Create new admin response - don't change the user's response status
         const { error } = await supabase
           .from('admin_responses')
           .insert({
@@ -169,20 +212,23 @@ export default function ResponseDetailPage() {
           })
         
         if (error) throw error
+        
+        // Update local state without changing response status
+        setResponse({
+          ...response,
+          admin_response: {
+            id: null, // Will be assigned by database
+            status: responseAction,
+            message_to_user: adminMessage
+          }
+        })
       }
+      
+      // Reset the update action flag
+      setIsUpdateAction(false)
       
       // Refresh the page to show updated data
       router.refresh()
-      
-      // Update local state
-      setResponse({
-        ...response,
-        admin_response: {
-          id: response.admin_response?.id || null,
-          status: responseAction,
-          message_to_user: adminMessage
-        }
-      })
       
       // Hide the form
       setShowResponseForm(false)
@@ -205,6 +251,7 @@ export default function ResponseDetailPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#080808]">
         <div className="w-8 h-8 border-t-2 border-[#FFB900] rounded-full animate-spin"></div>
+        <LoadingTimeout isLoading={true} />
       </div>
     )
   }
@@ -251,7 +298,13 @@ export default function ResponseDetailPage() {
             )}
             
             <button
-              onClick={() => setShowResponseForm(true)}
+              onClick={() => {
+                setShowResponseForm(true);
+                setIsUpdateAction(true);
+                if (response.admin_response?.message_to_user) {
+                  setAdminMessage(response.admin_response.message_to_user);
+                }
+              }}
               className="px-4 py-2 bg-[#FFB900] text-black rounded-full hover:bg-[#E6A800] transition-colors"
             >
               {response.admin_response ? 'Update Response' : 'Respond'}
@@ -297,7 +350,10 @@ export default function ResponseDetailPage() {
           <div>
             <p className="text-[#FFB900] text-sm mb-2">Status</p>
             <p className={`capitalize ${
-              response.status === 'accepted' ? 'text-green-500' : 'text-red-500'
+              response.status === 'accepted' ? 'text-green-500' : 
+              response.status === 'rejected' ? 'text-red-500' : 
+              response.status === 'pending_update' ? 'text-orange-500' :
+              'text-gray-400'
             }`}>
               {response.status}
             </p>
@@ -378,6 +434,10 @@ export default function ResponseDetailPage() {
             onClick={() => {
               setResponseAction('approved')
               setShowResponseForm(true)
+              setIsUpdateAction(false)
+              if (response.admin_response?.message_to_user) {
+                setAdminMessage(response.admin_response.message_to_user);
+              }
             }}
           >
             <span>Apply Offer</span>
@@ -391,6 +451,10 @@ export default function ResponseDetailPage() {
             onClick={() => {
               setResponseAction('rejected')
               setShowResponseForm(true)
+              setIsUpdateAction(false)
+              if (response.admin_response?.message_to_user) {
+                setAdminMessage(response.admin_response.message_to_user);
+              }
             }}
           >
             <span>Decline Offer</span>

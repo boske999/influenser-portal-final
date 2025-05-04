@@ -4,7 +4,7 @@ import { AuthProvider } from '../context/AuthContext';
 import { NotificationProvider } from '../context/NotificationContext';
 import { ChatProvider } from '../context/ChatContext';
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, ensureChatBucketExists } from '../lib/supabase';
 import ToastProvider from './ToastProvider';
 
 export default function AuthProviderClient({ 
@@ -19,6 +19,10 @@ export default function AuthProviderClient({
     const initAuth = async () => {
       try {
         await supabase.auth.getSession();
+        
+        // Ensure the chat bucket exists for file uploads
+        await ensureChatBucketExists();
+        
         setIsReady(true);
       } catch (error) {
         console.error("Auth initialization error:", error);

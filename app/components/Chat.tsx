@@ -22,6 +22,10 @@ export default function Chat({ proposalId }: ChatProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Koristimo useRef da pratimo ID-ove poruka koje su već bile prikazane
+  // Ovo pomaže da sprečimo dupliranje i nepotrebne re-rendere
+  const processedMessageIds = useRef(new Set<string>());
 
   useEffect(() => {
     // Set current proposal ID in context
@@ -44,6 +48,11 @@ export default function Chat({ proposalId }: ChatProps) {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
+    
+    // Ažuriraj set već prikazanih poruka
+    messages.forEach(msg => {
+      processedMessageIds.current.add(msg.id);
+    });
   }, [messages]);
 
   // Mark messages as read when the component is mounted
@@ -61,16 +70,27 @@ export default function Chat({ proposalId }: ChatProps) {
     try {
       setIsLoading(true);
       console.log('Sending message:', newMessage);
-      await sendMessage(newMessage);
-      setNewMessage('');
+      
+      // Sačuvajmo poruku lokalno pre slanja
+      const messageToSend = newMessage;
+      setNewMessage(''); // Resetuj input odmah
+      
+      await sendMessage(messageToSend);
       console.log('Message sent successfully');
     } catch (error) {
       console.error('Error sending message:', error);
+      // Ako dođe do greške, vratimo poruku u input polje
+      setNewMessage(newMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Filter duplicate messages to ensure stability
+  const filteredMessages = messages.filter((message, index, self) => 
+    self.findIndex(m => m.id === message.id) === index
+  );
+  
   if (loading || isLoading) {
     return <div className="flex justify-center items-center h-64">Loading conversation...</div>;
   }
@@ -82,10 +102,10 @@ export default function Chat({ proposalId }: ChatProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 ? (
+        {filteredMessages.length === 0 ? (
           <div className="text-center text-gray-500">No messages yet. Start the conversation!</div>
         ) : (
-          messages.map((message) => (
+          filteredMessages.map((message) => (
             <ChatMessage key={message.id} message={message} />
           ))
         )}

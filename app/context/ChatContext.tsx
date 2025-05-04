@@ -11,6 +11,8 @@ export type ChatMessage = {
   message: string;
   created_at: string;
   is_read: boolean;
+  attachment_url?: string;
+  file_name?: string;
   user?: {
     full_name: string | null;
     email: string | null;
@@ -230,6 +232,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     if (!user || !chatId) return;
     
     try {
+      // Priprema nove poruke
       const newMessage = {
         chat_id: chatId,
         user_id: user.id,
@@ -237,6 +240,26 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         is_read: false,
       };
       
+      // Kreiraj optimističku poruku sa privremenim ID-om pre slanja
+      const tempId = `temp-${Date.now()}`;
+      const optimisticMessage: ChatMessage = {
+        id: tempId,
+        chat_id: chatId,
+        user_id: user.id,
+        message,
+        created_at: new Date().toISOString(),
+        is_read: false,
+        user: {
+          full_name: user.user_metadata?.full_name || null,
+          email: user.email || null
+        }
+      };
+      
+      // Dodaj optimističku poruku u niz odmah (bez čekanja API odgovora)
+      console.log('Adding optimistic message to UI immediately:', optimisticMessage);
+      setMessages(prevMessages => [...prevMessages, optimisticMessage]);
+      
+      // Pošalji poruku serveru
       const { data, error } = await supabase
         .from('chat_messages')
         .insert(newMessage)
@@ -245,19 +268,21 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (error) {
         console.error('Error sending message:', error);
+        // Ukloni optimističku poruku u slučaju greške
+        setMessages(prevMessages => prevMessages.filter(msg => msg.id !== tempId));
         setError('Failed to send message');
         throw new Error('Failed to send message');
       }
       
-      // Get current user data for optimistic update
+      // Dobavi korisničke podatke za ažuriranje poruke
       const { data: userData } = await supabase
         .from('users')
         .select('full_name, email')
         .eq('id', user.id)
         .single();
       
-      // Add message to UI immediately instead of waiting for subscription
-      const optimisticMessage: ChatMessage = {
+      // Ažuriraj optimističku poruku sa pravim ID-om i vremenom
+      const realMessage: ChatMessage = {
         id: data.id,
         chat_id: chatId,
         user_id: user.id,
@@ -270,16 +295,13 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         }
       };
       
-      console.log('Adding message to UI immediately:', optimisticMessage);
-      
-      // Update the messages array
-      setMessages(prevMessages => {
-        // Check if message already exists to prevent duplicates
-        if (prevMessages.some(msg => msg.id === optimisticMessage.id)) {
-          return prevMessages;
-        }
-        return [...prevMessages, optimisticMessage];
-      });
+      // Ažuriraj niz poruka sa pravom porukom (zameni privremenu)
+      console.log('Replacing optimistic message with real message:', realMessage);
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg.id === tempId ? realMessage : msg
+        )
+      );
       
     } catch (err: any) {
       console.error('Message send error:', err);
@@ -335,6 +357,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const channelName = `chat-${chatId}-${Date.now()}`;
     console.log('Creating channel:', channelName);
     
+    // Reference na poslednje poznate poruke za upoređivanje da bi sprečili dupliranje
+    const knownMessageIds = new Set(messages.map(msg => msg.id));
+    
     // Subscribe to new messages
     const channel = supabase.channel(channelName);
     
@@ -346,6 +371,19 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         filter: `chat_id=eq.${chatId}`,
       }, async (payload: any) => {
         console.log('Received new message via postgres_changes:', payload);
+        
+        // Preskoči ako je poruka već poznata (moguće iz optimističkog ažuriranja)
+        if (knownMessageIds.has(payload.new.id)) {
+          console.log('Message already known, skipping:', payload.new.id);
+          return;
+        }
+        
+        // Preskoči ako je poruku poslao trenutni korisnik (već je obrađena kroz optimistički update)
+        if (payload.new.user_id === user?.id) {
+          console.log('Skipping subscription update for own message');
+          return;
+        }
+        
         // When a new message comes in, fetch the user data
         try {
           const { data: userData, error: userError } = await supabase
@@ -368,6 +406,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
             user: userData || { full_name: null, email: null },
           };
           
+          // Dodaj ID nove poruke u set poznatih ID-ova
+          knownMessageIds.add(newMessage.id);
+          
           console.log('Adding new message to state:', newMessage);
           
           // Add the new message to the messages array
@@ -384,6 +425,12 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
           // If the message is from someone else, increment unread count
           if (payload.new.user_id !== user?.id) {
             setUnreadCount(prev => prev + 1);
+            
+            // Automatski označi poruku kao pročitanu ako je chat otvoren
+            await supabase
+              .from('chat_messages')
+              .update({ is_read: true })
+              .eq('id', payload.new.id);
           }
         } catch (error) {
           console.error('Error processing new message:', error);

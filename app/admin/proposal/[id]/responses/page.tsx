@@ -7,6 +7,7 @@ import { useAuth } from '../../../../context/AuthContext'
 import { supabase } from '../../../../lib/supabase'
 import ConfirmationModal from '../../../../components/ConfirmationModal'
 import SystemMessages from '../../../../components/SystemMessages'
+import LoadingTimeout from '../../../../components/LoadingTimeout'
 
 type UserResponse = {
   id: string
@@ -316,6 +317,7 @@ export default function AllResponsesPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#080808]">
         <div className="w-8 h-8 border-t-2 border-[#FFB900] rounded-full animate-spin"></div>
+        <LoadingTimeout isLoading={true} />
       </div>
     )
   }
