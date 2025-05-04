@@ -16,7 +16,7 @@ type Response = {
   id: string
   proposal_id: string
   user_id: string
-  status: 'accepted' | 'rejected'
+  status: 'accepted' | 'rejected' | 'pending_update'
   proposed_publish_date: string | null
   message: string | null
   created_at: string
@@ -248,7 +248,33 @@ export default function ResponsesPage() {
                   <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3">
                     <div>
                       <p className="text-sm text-[#FFB900]">Your Response</p>
-                      <p className="text-gray-300 capitalize">{response.status}</p>
+                      <p className="text-gray-300 capitalize">
+                        {(() => {
+                          if (!response.admin_responses) {
+                            return "Pending Review";
+                          }
+                          
+                          const adminResponse = Array.isArray(response.admin_responses) 
+                            ? (response.admin_responses.length > 0 ? response.admin_responses[0] : null)
+                            : response.admin_responses;
+                          
+                          if (!adminResponse || adminResponse.status === undefined) {
+                            return "Pending Review";
+                          }
+                          
+                          const statusStr = String(adminResponse.status).toLowerCase();
+                          
+                          if (statusStr === "approved" || statusStr.includes("approv")) {
+                            return "Approved";
+                          } else if (statusStr === "rejected" || statusStr.includes("reject")) {
+                            return "Rejected";
+                          } else if (statusStr === "pending" || statusStr.includes("pend")) {
+                            return "Pending Review";
+                          } else {
+                            return `Unknown (${adminResponse.status})`;
+                          }
+                        })()}
+                      </p>
                     </div>
                     <div>
                       <p className="text-sm text-[#FFB900]">Admin Status</p>
@@ -320,12 +346,14 @@ export default function ResponsesPage() {
                   <span className={`px-3  status-badge rounded-full text-sm ${
                     response.status === 'accepted' 
                       ? 'bg-green-900/20 text-green-500' 
-                      : 'bg-red-900/20 text-red-500'
+                      : response.status === 'pending_update'
+                        ? 'bg-yellow-900/20 text-yellow-500'
+                        : 'bg-red-900/20 text-red-500'
                   }`}>
-                    {response.status === 'accepted' ? 'Accepted' : 'Declined'}
+                    {response.status === 'accepted' ? 'Accepted' : response.status === 'pending_update' ? 'Pending Update' : 'Declined'}
                   </span>
                   
-                  {response.status === 'accepted' && renderAdminStatusBadge(response)}
+                  {(response.status === 'accepted' || response.status === 'pending_update') && renderAdminStatusBadge(response)}
                 </div>
               </div>
               

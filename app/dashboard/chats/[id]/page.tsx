@@ -19,6 +19,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const [proposal, setProposal] = useState<ProposalInfo | null>(null);
+  const [responseId, setResponseId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageType[]>([]);
@@ -73,6 +74,11 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           setError('Failed to verify your access to this chat');
           setLoading(false);
           return;
+        }
+        
+        // Save the response ID if it exists
+        if (responseData?.id) {
+          setResponseId(responseData.id);
         }
 
         // Ako korisnik nije admin i nema odgovor na ovaj predlog, zabrani pristup
@@ -455,6 +461,36 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">{proposal.title}</h1>
         <p className="text-gray-400">{proposal.company_name}</p>
+        
+        {/* Action buttons */}
+        <div className="flex gap-4 mt-4">
+          <Link
+            href={`/dashboard/proposal/${proposal.id}`}
+            className="px-4 py-2 bg-[#1A1A1A] text-white rounded-lg hover:bg-[#292929] transition-colors border border-white/10 flex items-center gap-2"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M14 3v4a1 1 0 0 0 1 1h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M9 9h1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              <path d="M9 13h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              <path d="M9 17h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            View Proposal
+          </Link>
+          <Link
+            href={`/dashboard/view-response?id=${responseId}`}
+            className={`px-4 py-2 bg-[#1A1A1A] text-white rounded-lg hover:bg-[#292929] transition-colors border border-white/10 flex items-center gap-2 ${!responseId ? 'opacity-50 pointer-events-none' : ''}`}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 18.5L9 17L4 18.5V5.5L9 4L15 5.5L20 4V13.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M9 4V17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M15 5.5V11.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M18 21V16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M15 18H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            View Response
+          </Link>
+        </div>
       </div>
       
       {/* Chat container */}

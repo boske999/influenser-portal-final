@@ -294,6 +294,12 @@ export default function Dashboard() {
           Applied
         </span>
       );
+    } else if (proposal.user_response.status === 'pending_update') {
+      return (
+        <span className="px-2 status-badge py-1 text-xs bg-yellow-700 text-yellow-100 rounded-full">
+          Pending Update
+        </span>
+      );
     } else {
       // User declined
       return (
@@ -307,7 +313,7 @@ export default function Dashboard() {
   // Add a helper function to render admin status badges
   const renderAdminStatusBadge = (proposal: Proposal) => {
     // Only show admin status if user has applied
-    if (!proposal.user_response || proposal.user_response.status !== 'accepted') {
+    if (!proposal.user_response || (proposal.user_response.status !== 'accepted' && proposal.user_response.status !== 'pending_update')) {
       return null;
     }
 

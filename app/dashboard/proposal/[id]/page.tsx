@@ -264,7 +264,7 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
                 : response.status === 'pending'
                 ? 'Your response is pending review'
                 : response.status === 'pending_update'
-                ? 'The admin has requested updates to your response'
+                ? 'Your response requires updates'
                 : 'You have declined this offer'}
             </p>
             <p className="text-center text-gray-400 text-sm mt-2">

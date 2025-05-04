@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '../context/AuthContext'
 import { useAdminNotifications } from '../context/AdminNotificationContext'
+import { useAdminChat } from '../context/AdminChatContext'
 import { ProposalUnavailableMessage } from './UnavailableMessages'
 
 const navigationItems = [
@@ -20,7 +21,8 @@ const navigationItems = [
 export default function AdminSidebar() {
   const pathname = usePathname()
   const { signOut, user, userData } = useAuth()
-  const { unreadCount } = useAdminNotifications()
+  const { unreadCount: notificationUnreadCount } = useAdminNotifications()
+  const { unreadCount: chatUnreadCount } = useAdminChat()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   
   // Close mobile menu when path changes
@@ -145,6 +147,7 @@ export default function AdminSidebar() {
           {navigationItems.map((item) => {
             const isActive = pathname === item.href
             const isNotification = item.name === 'Notifications'
+            const isChat = item.name === 'Chats'
             return (
               <Link 
                 key={item.name} 
@@ -159,9 +162,14 @@ export default function AdminSidebar() {
                   {renderIcon(item.icon)}
                 </span>
                 <span className="text-sm md:text-base flex-1">{item.name}</span>
-                {isNotification && unreadCount > 0 && (
+                {isNotification && notificationUnreadCount > 0 && (
                   <span className="flex items-center justify-center h-5 min-w-5 px-1 text-xs font-medium rounded-full bg-[#FFB900] text-black">
-                    {unreadCount > 99 ? '99+' : unreadCount}
+                    {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+                  </span>
+                )}
+                {isChat && chatUnreadCount > 0 && (
+                  <span className="flex items-center justify-center h-5 min-w-5 px-1 text-xs font-medium rounded-full bg-[#FFB900] text-black">
+                    {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
                   </span>
                 )}
               </Link>

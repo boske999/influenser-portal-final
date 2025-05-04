@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useChat } from '../../../context/ChatContext';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import ChatMessage from '../../../components/ChatMessage';
 import { v4 as uuidv4 } from 'uuid';
 import { ChatMessage as MessageType } from '../../../context/ChatContext';
+import Link from 'next/link';
 
 type AdminChatParams = {
   params: {
@@ -19,6 +20,7 @@ export default function AdminChatPage({ params }: AdminChatParams) {
   const { chatId } = params;
   const searchParams = useSearchParams();
   const proposalId = searchParams.get('proposalId');
+  const router = useRouter();
   const { user } = useAuth();
   const [proposal, setProposal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -30,6 +32,8 @@ export default function AdminChatPage({ params }: AdminChatParams) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [responseId, setResponseId] = useState<string | null>(null);
+  const [deletingChat, setDeletingChat] = useState(false);
 
   // Fetch the proposal and initial messages
   useEffect(() => {
@@ -99,6 +103,19 @@ export default function AdminChatPage({ params }: AdminChatParams) {
               .update({ is_read: true })
               .in('id', unreadIds);
           }
+        }
+
+        // Fetch response associated with this proposal
+        const { data: responseData, error: responseError } = await supabase
+          .from('responses')
+          .select('id')
+          .eq('proposal_id', proposalId)
+          .single();
+
+        if (responseError) {
+          console.error('Error fetching response:', responseError);
+        } else if (responseData) {
+          setResponseId(responseData.id);
         }
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -308,6 +325,48 @@ export default function AdminChatPage({ params }: AdminChatParams) {
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const handleDeleteChat = async () => {
+    if (!chatId || !user) return;
+    
+    if (!window.confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      setDeletingChat(true);
+      
+      // First delete all messages from this chat
+      const { error: messagesError } = await supabase
+        .from('chat_messages')
+        .delete()
+        .eq('chat_id', chatId);
+        
+      if (messagesError) {
+        console.error('Error deleting chat messages:', messagesError);
+        return;
+      }
+      
+      // Then delete the chat itself
+      const { error: chatError } = await supabase
+        .from('chats')
+        .delete()
+        .eq('id', chatId);
+        
+      if (chatError) {
+        console.error('Error deleting chat:', chatError);
+        return;
+      }
+      
+      // Navigate back to chats list
+      router.push('/admin/chats');
+      
+    } catch (err) {
+      console.error('Error during chat deletion:', err);
+    } finally {
+      setDeletingChat(false);
+    }
+  };
   
   if (loading) {
     return (
@@ -326,6 +385,35 @@ export default function AdminChatPage({ params }: AdminChatParams) {
         <h1 className="text-2xl font-bold">
           Chat: {proposal?.title || 'Unknown Proposal'}
         </h1>
+        <div className="flex space-x-3">
+          {responseId && (
+            <Link 
+              href={`/admin/response/${responseId}`}
+              className="px-4 py-2 bg-[#1A1A1A] text-[#FFB900] rounded-full hover:bg-[#252525] transition-colors flex items-center space-x-2"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M12 3V12M12 12L9 9M12 12L15 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span>View Response</span>
+            </Link>
+          )}
+          <button
+            onClick={handleDeleteChat}
+            disabled={deletingChat}
+            className="px-4 py-2 bg-red-900/20 text-red-500 rounded-full hover:bg-red-900/40 transition-colors flex items-center space-x-2"
+          >
+            {deletingChat ? (
+              <span className="w-5 h-5 border-t-2 border-red-500 rounded-full animate-spin mr-2"></span>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
+                <path d="M3 6H5H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+            <span>{deletingChat ? 'Deleting...' : 'Delete Chat'}</span>
+          </button>
+        </div>
       </div>
       
       <div className="flex-grow flex flex-col bg-[#121212] rounded-lg border border-white/5 overflow-hidden">
