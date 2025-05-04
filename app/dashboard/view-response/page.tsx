@@ -370,7 +370,7 @@ export default function ViewResponsePage() {
                 </div>
               </div>
               
-              {isRejectedByAdmin() && !updated && (
+              {(isRejectedByAdmin() || response.status === 'pending_update') && (
                 <div className="mt-6">
                   <Link
                     href={`/dashboard/edit-response?id=${response.id}`}

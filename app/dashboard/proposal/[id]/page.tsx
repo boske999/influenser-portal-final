@@ -280,7 +280,7 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
           </div>
           
           <div className="flex flex-col space-y-3">
-            {canEditResponse && (
+            {(response.admin_response?.status === 'rejected' || response.status === 'pending_update') && (
               <Link
                 href={`/dashboard/edit-response?id=${response.id}`}
                 className="w-full flex items-center justify-center space-x-2 px-8 py-4 bg-[#FFB900] rounded-full hover:bg-[#E6A800] transition-colors"
