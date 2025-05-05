@@ -115,4 +115,70 @@ export async function signOutUser() {
   await supabase.auth.signOut();
 }
 
+/**
+ * Pokušava da osvježi sesiju korisnika putem Supabase Auth API-a
+ * @returns {Promise<boolean>} true ako je osvježavanje uspješno, false ako nije
+ */
+export async function refreshSession(): Promise<boolean> {
+  try {
+    console.log("Attempting to refresh session");
+    const { data, error } = await supabase.auth.refreshSession();
+    
+    if (error) {
+      console.error("Failed to refresh session:", error);
+      return false;
+    }
+    
+    console.log("Session refreshed successfully");
+    return true;
+  } catch (err) {
+    console.error("Exception during session refresh:", err);
+    return false;
+  }
+}
+
+/**
+ * Provjerava da li je trenutna sesija korisnika validna
+ * @returns {Promise<boolean>} true ako je sesija validna, false ako nije
+ */
+export async function isSessionValid(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.error("Error checking session validity:", error);
+      return false;
+    }
+    
+    // Ako session postoji i imamo access_token, sesija je validna
+    return !!(data?.session?.access_token);
+  } catch (err) {
+    console.error("Exception checking session validity:", err);
+    return false;
+  }
+}
+
+/**
+ * Provjera zdravlja konekcije - može se koristiti za testiranje veze sa Supabase-om
+ * @returns {Promise<boolean>} true ako je veza zdrava, false ako nije
+ */
+export async function checkConnection(): Promise<boolean> {
+  try {
+    // Jednostavan zahtjev za provjeru konekcije
+    const { count, error } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true });
+    
+    if (error) {
+      console.error("Connection check failed:", error);
+      return false;
+    }
+    
+    return true;
+  } catch (err) {
+    console.error("Exception during connection check:", err);
+    return false;
+  }
+}
+
 export type { User, Session } from '@supabase/supabase-js'; 

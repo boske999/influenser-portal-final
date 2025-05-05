@@ -38,6 +38,7 @@ export default function ApplyOfferPage() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [paymentMethod, setPaymentMethod] = useState('')
   const [message, setMessage] = useState('')
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false)
   
   // Validation state
   const [errors, setErrors] = useState<{[key: string]: string}>({})
@@ -98,6 +99,7 @@ export default function ApplyOfferPage() {
     if (!publishDate) newErrors.publishDate = 'Please select a publish date'
     if (selectedPlatforms.length === 0) newErrors.platforms = 'Please select at least one platform'
     if (!paymentMethod) newErrors.paymentMethod = 'Please select a payment method'
+    if (proposal.disclaimer && !disclaimerAccepted) newErrors.disclaimer = 'You must accept the disclaimer to proceed'
     
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -120,7 +122,8 @@ export default function ApplyOfferPage() {
         proposed_publish_date: publishDate,
         platforms: selectedPlatforms,
         payment_method: paymentMethod,
-        message: message
+        message: message,
+        disclaimer_accepted: disclaimerAccepted
       }
       
       const { error } = await supabase
@@ -290,6 +293,30 @@ export default function ApplyOfferPage() {
               className="bg-[#080808] border border-white/10 rounded-lg py-3 px-4 w-full text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-[#FFB900] focus:border-[#FFB900]"
             ></textarea>
           </div>
+
+          {/* Disclaimer */}
+          {proposal.disclaimer && (
+            <div className="space-y-4">
+              <div className="p-4 bg-[#080808] border border-white/10 rounded-lg">
+                <h3 className="text-[#FFB900] font-medium mb-2">Legal Disclaimer</h3>
+                <p className="text-white text-sm whitespace-pre-line">{proposal.disclaimer}</p>
+              </div>
+              
+              <div className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  id="disclaimerAccepted"
+                  checked={disclaimerAccepted}
+                  onChange={(e) => setDisclaimerAccepted(e.target.checked)}
+                  className="mt-1"
+                />
+                <label htmlFor="disclaimerAccepted" className="text-white text-sm">
+                  I have read and agree to the terms in the disclaimer
+                </label>
+              </div>
+              {errors.disclaimer && <p className="text-red-500 text-sm">{errors.disclaimer}</p>}
+            </div>
+          )}
 
           {/* Submit Button */}
           <div>

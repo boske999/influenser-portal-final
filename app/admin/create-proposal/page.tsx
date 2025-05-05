@@ -26,7 +26,8 @@ type FormData = {
   campaign_start_date: string,
   campaign_end_date: string,
   short_description: string,
-  content: string
+  content: string,
+  disclaimer: string
 }
 
 export default function CreateProposal() {
@@ -79,7 +80,8 @@ export default function CreateProposal() {
     campaign_start_date: '',
     campaign_end_date: '',
     short_description: '',
-    content: ''
+    content: '',
+    disclaimer: ''
   })
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -311,6 +313,7 @@ export default function CreateProposal() {
           campaign_end_date: formData.campaign_end_date,
           short_description: formData.short_description,
           content: contentJson,
+          disclaimer: formData.disclaimer,
           created_by: user.id
         })
         .select()
@@ -508,9 +511,23 @@ export default function CreateProposal() {
                   required
                   value={formData.short_description}
                   onChange={handleChange}
-                  className="w-full px-3 py-4 rounded-lg bg-[rgba(255,255,255,0.04)] border border-white/20 focus:outline-none text-white h-24"
-                  placeholder="Enter a brief description of the proposal"
-                />
+                  className="w-full px-3 py-4 rounded-lg bg-[rgba(255,255,255,0.04)] border border-white/20 focus:outline-none text-white"
+                  placeholder="Enter a brief overview of the proposal"
+                  rows={3}
+                ></textarea>
+              </div>
+              
+              <div>
+                <label htmlFor="disclaimer" className="block text-sm text-[#FFB900] mb-2">Legal Disclaimer</label>
+                <textarea
+                  id="disclaimer"
+                  name="disclaimer"
+                  value={formData.disclaimer}
+                  onChange={handleChange}
+                  className="w-full px-3 py-4 rounded-lg bg-[rgba(255,255,255,0.04)] border border-white/20 focus:outline-none text-white"
+                  placeholder="Enter legal disclaimer that users must accept when responding (optional)"
+                  rows={3}
+                ></textarea>
               </div>
               
               <div>

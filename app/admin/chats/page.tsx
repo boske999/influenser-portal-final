@@ -96,7 +96,7 @@ export default function AdminChatsPage() {
         }
 
         // Process the data to get the latest message and user info
-        const processedChats = (data || []).map((chat: any) => {
+        const processedChats = await Promise.all((data || []).map(async (chat: any) => {
           const messages = chat.chat_messages || [];
           // Sort messages by date (newest first)
           const sortedMessages = [...messages].sort(
@@ -108,7 +108,34 @@ export default function AdminChatsPage() {
           
           // Find the user who is not the admin (to get the chat name)
           const userMessage = messages.find((msg: ChatMessage) => msg.user_id !== user.id);
-          const userEmail = userMessage?.users?.email || null;
+          let userEmail = userMessage?.users?.email || null;
+          
+          // If we couldn't find a user from messages, look for the user in responses
+          if (!userEmail) {
+            try {
+              // First get the user_id from the response
+              const { data: responseData, error: responseError } = await supabase
+                .from('responses')
+                .select('user_id')
+                .eq('proposal_id', chat.proposal_id)
+                .single();
+                
+              if (!responseError && responseData && responseData.user_id) {
+                // Then fetch the user's email using the user_id
+                const { data: userData, error: userError } = await supabase
+                  .from('users')
+                  .select('email')
+                  .eq('id', responseData.user_id)
+                  .single();
+                  
+                if (!userError && userData && userData.email) {
+                  userEmail = userData.email;
+                }
+              }
+            } catch (err) {
+              console.log('No response found for this proposal');
+            }
+          }
           
           return {
             id: chat.id,
@@ -119,7 +146,7 @@ export default function AdminChatsPage() {
             created_at: chat.created_at,
             userEmail
           };
-        });
+        }));
         
         setChats(processedChats);
         
