@@ -1,7 +1,7 @@
 import { createClient, type User, type Session } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://fbmdbvijfufsjpsuorxi.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZibWRidmlqZnVmc2pwc3VvcnhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUwOTI3NjksImV4cCI6MjA2MDY2ODc2OX0.WpbyAQo8HyoMW1YWGM24MX22rmFth49Zjq17JMAwfGo';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://fbmdbvijfufsjpsuorxi.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Create global Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
