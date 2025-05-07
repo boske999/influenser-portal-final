@@ -1,0 +1,81 @@
+import { createClient, type User, type Session } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://fbmdbvijfufsjpsuorxi.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+// Create global Supabase client
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    storage: typeof window !== 'undefined' ? localStorage : undefined,
+    autoRefreshToken: true,
+    detectSessionInUrl: false, 
+  },
+});
+
+// Helper function to fetch user data from the database
+export async function fetchUserData(userId: string) {
+  if (!userId) return null;
+  
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('role, full_name, avatar_url')
+      .eq('id', userId)
+      .single();
+      
+    if (error) {
+      console.error('Error fetching user data:', error);
+      return null;
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('Exception fetching user data:', err);
+    return null;
+  }
+}
+
+// User sign in and session creation
+export async function signInUser(email: string, password: string): Promise<{
+  user: User | null;
+  session: Session | null;
+  userData: any | null;
+  error: any | null;
+}> {
+  try {
+    // Sign in with email and password
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+    
+    if (error) {
+      return { user: null, session: null, userData: null, error };
+    }
+    
+    // Fetch user's role
+    if (data.user) {
+      const userData = await fetchUserData(data.user.id);
+      
+      // Return both auth user data and additional user data from users table
+      return { 
+        user: data.user, 
+        session: data.session,
+        userData,
+        error: null 
+      };
+    }
+    
+    return { user: data.user, session: data.session, userData: null, error: null };
+  } catch (error: any) {
+    return { user: null, session: null, userData: null, error };
+  }
+}
+
+// Sign out user
+export async function signOutUser() {
+  await supabase.auth.signOut();
+}
+
+export type { User, Session } from '@supabase/supabase-js'; 
