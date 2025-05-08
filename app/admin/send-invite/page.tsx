@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 export default function SendInvitePage() {
   const [email, setEmail] = useState('')
+  const [handleName, setHandleName] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +32,7 @@ export default function SendInvitePage() {
     setLogs([])
     
     try {
-      addLog(`Sending invitation to ${email}...`);
+      addLog(`Sending invitation to ${email}${handleName ? ` (${handleName})` : ''}...`);
       
       // Koristimo serversku API rutu za slanje pozivnica
       const response = await fetch('/api/admin/invite-user', {
@@ -39,7 +40,7 @@ export default function SendInvitePage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, handleName }),
       });
       
       const result = await response.json();
@@ -109,6 +110,23 @@ export default function SendInvitePage() {
               className="w-full px-4 py-2 bg-inputBg border border-white/20 rounded-md text-textPrimary placeholder-textTertiary focus:outline-none focus:ring-2 focus:ring-[#FFB900] focus:border-transparent"
               required
             />
+          </div>
+          
+          <div>
+            <label htmlFor="handleName" className="block text-sm font-medium text-textSecondary mb-1">
+              Influencer Name
+            </label>
+            <input
+              id="handleName"
+              type="text"
+              value={handleName}
+              onChange={(e) => setHandleName(e.target.value)}
+              placeholder="Enter influencer name"
+              className="w-full px-4 py-2 bg-inputBg border border-white/20 rounded-md text-textPrimary placeholder-textTertiary focus:outline-none focus:ring-2 focus:ring-[#FFB900] focus:border-transparent"
+            />
+            <p className="mt-1 text-xs text-textTertiary">
+              This name will be used in the email greeting (e.g., "Hi John,")
+            </p>
           </div>
           
           <button

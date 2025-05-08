@@ -1,0 +1,97 @@
+<html>
+<head>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      border: 1px solid #eaeaea;
+      border-radius: 5px;
+    }
+    .header {
+      background-color: #FFB900;
+      padding: 20px;
+      text-align: center;
+      border-radius: 5px 5px 0 0;
+    }
+    .content {
+      padding: 20px;
+    }
+    .button {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #FFB900;
+      color: black;
+      text-decoration: none;
+      font-weight: bold;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+    .footer {
+      margin-top: 30px;
+      text-align: center;
+      color: #777;
+      font-size: 12px;
+    }
+    .feature-list {
+      padding-left: 20px;
+    }
+    .feature-list li {
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 style="color: black; margin: 0;">Join Our New Influencer Platform</h1>
+    </div>
+    <div class="content">
+      <p>Hi {{ .HandleName }},</p>
+      
+      <p>I'm excited to share something we've been working on - a brand-new platform built specifically to make our influencer campaigns smoother, faster, and more organized for both of us.</p>
+      
+      <p>No more messy email chains or lost messages.</p>
+      
+      <p>With this platform, you can:</p>
+      <ul class="feature-list">
+        <li>Get campaign offers directly from me and my team</li>
+        <li>Accept, decline, or request changes to offers</li>
+        <li>Get access to more advertising opportunities through our new bidding process (more deals for you on a monthly basis)</li>
+        <li>Submit quotes and request payment</li>
+        <li>Upload drafts or scripts for review</li>
+        <li>Get approvals, feedback, and final go-aheads – all in one place</li>
+      </ul>
+      
+      <p>It's simple and streamlined - designed to save us both time.</p>
+      
+      <p>From now on, all campaign opportunities and communication will go through this platform. You'll still get email notifications when there's a new offer, but everything will be handled inside the platform - not through direct emails like before.</p>
+      
+      <p>Sign up below to get started 👇</p>
+      
+      <div style="text-align: center;">
+        <a href="{{ .RedirectTo }}" class="button">Create Your Account</a>
+      </div>
+      
+      <p>Or copy and paste this link into your browser:</p>
+      <p style="word-break: break-all; background-color: #f5f5f5; padding: 10px; border-radius: 3px; font-size: 13px;">
+        {{ .RedirectTo }}
+      </p>
+      
+      <p>It only takes a minute - you'll be all set to receive campaign invites after you're onboarded to the platform.</p>
+      
+      <p>Looking forward to working with you through the platform. If you have any questions, don't hesitate to reach out or call me.</p>
+      
+      <p>Best,<br>Aleem</p>
+    </div>
+    <div class="footer">
+      <p>&copy; 2024 Allem. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html> 

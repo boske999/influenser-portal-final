@@ -188,4 +188,9 @@ export async function checkConnection(): Promise<boolean> {
   }
 }
 
+// Add support for handle name in custom data
+export interface CustomUserData {
+  handle_name?: string;
+}
+
 export type { User, Session } from '@supabase/supabase-js'; 

@@ -16,12 +16,13 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 
 type RequestData = {
   email: string;
+  handleName?: string;
 };
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as RequestData;
-    const { email } = body;
+    const { email, handleName = '' } = body;
 
     // Validacija ulaznih podataka
     if (!email) {
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Processing invitation for email:', email);
+    console.log('Processing invitation for email:', email, 'handle:', handleName || 'not provided');
 
     // Generišemo token za pozivnicu (6 karaktera, lakše za kucanje)
     const token = crypto.randomBytes(3).toString('hex');
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
         .from('invitations')
         .update({
           token,
+          handle_name: handleName || null,
           expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -101,6 +103,7 @@ export async function POST(request: NextRequest) {
       console.log('Creating new invitation record');
       const invitationData = {
         email,
+        handle_name: handleName || null,
         status: 'pending',
         token,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -138,7 +141,10 @@ export async function POST(request: NextRequest) {
       // Prvo pokušamo sa inviteUserByEmail - koja samo šalje mejl, ne pravi automatski korisnika
       const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
         // Ovde je ključna promena - prosleđujemo naš URL sa našim tokenom
-        redirectTo: registrationUrl
+        redirectTo: registrationUrl,
+        data: {
+          handle_name: handleName || '',
+        }
       });
       
       if (inviteError) {
@@ -159,6 +165,7 @@ export async function POST(request: NextRequest) {
           invitation_id: invitationId,
           registration_url: registrationUrl,
           email,
+          handle_name: handleName,
           token,
           email_sent: emailSent
         } 
