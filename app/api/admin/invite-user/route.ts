@@ -140,10 +140,10 @@ export async function POST(request: NextRequest) {
       
       // Prvo pokušamo sa inviteUserByEmail - koja samo šalje mejl, ne pravi automatski korisnika
       const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-        // Ovde je ključna promena - prosleđujemo naš URL sa našim tokenom
+        // Postavljamo redirekciju i dodatne metapodatke koji će biti dostupni u šablonu
         redirectTo: registrationUrl,
         data: {
-          handle_name: handleName || '',
+          handle_name: handleName || 'Influencer',
         }
       });
       
