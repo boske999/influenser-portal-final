@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../context/AuthContext'
 import AdminSidebar from '../components/AdminSidebar'
 import { AdminNotificationProvider } from '../context/AdminNotificationContext'
+import { AdminChatProvider } from '../context/AdminChatContext'
 
 // Create a redirection key unique to this layout to track redirects
 const REDIRECT_KEY = 'admin_redirect_check';
@@ -74,14 +75,16 @@ export default function AdminLayout({
 
   return (
     <AdminNotificationProvider>
-      <div className="app-layout">
-        <AdminSidebar />
-        <main className="app-layout-content">
-          <div className="main-content">
-            {children}
-          </div>
-        </main>
-      </div>
+      <AdminChatProvider>
+        <div className="app-layout">
+          <AdminSidebar />
+          <main className="app-layout-content">
+            <div className="main-content">
+              {children}
+            </div>
+          </main>
+        </div>
+      </AdminChatProvider>
     </AdminNotificationProvider>
   )
 } 

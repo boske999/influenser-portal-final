@@ -6,11 +6,13 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '../context/AuthContext'
 import { useNotifications } from '../context/NotificationContext'
+import { useChat } from '../context/ChatContext'
 
 const navigationItems = [
   { name: 'Dashboard', href: '/dashboard', icon: 'home' },
   { name: 'Old Proposals', href: '/dashboard/old-proposals', icon: 'proposal' },
   { name: 'Responses', href: '/dashboard/responses', icon: 'response' },
+  { name: 'Chats', href: '/dashboard/chats', icon: 'chat' },
   { name: 'Notifications', href: '/dashboard/notifications', icon: 'notification' },
   { name: 'Settings', href: '/dashboard/settings', icon: 'settings' },
 ]
@@ -18,7 +20,8 @@ const navigationItems = [
 export default function Sidebar() {
   const pathname = usePathname()
   const { signOut, user, userData } = useAuth()
-  const { unreadCount } = useNotifications()
+  const { unreadCount: notificationUnreadCount } = useNotifications()
+  const { unreadCount: chatUnreadCount } = useChat()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   
   // Close mobile menu when path changes
@@ -47,6 +50,12 @@ export default function Sidebar() {
             <path d="M7.33333 6.41667V5.5C7.33333 3.85833 7.33333 2.75 10.0833 2.75H11.9167C14.6667 2.75 14.6667 3.85833 14.6667 5.5V6.41667" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M11 15.5833V10.0833" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M8.25 12.8333L11 15.5833L13.75 12.8333" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )
+      case 'chat':
+        return (
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M19.25 10.5417C19.2531 11.7516 18.9701 12.9452 18.425 14.0417C17.7782 15.3192 16.7673 16.3909 15.5368 17.1518C14.3063 17.9128 12.9051 18.3328 11.4584 18.3333C10.2485 18.3365 9.05484 18.0535 7.95837 17.5083L2.75004 19.25L4.49171 14.0417C3.94651 12.9452 3.66351 11.7516 3.66671 10.5417C3.66722 9.09499 4.08722 7.69389 4.84819 6.46337C5.60916 5.23285 6.68084 4.22191 7.95837 3.57506C9.05484 3.02986 10.2485 2.74686 11.4584 2.75006H11.9167C13.8276 2.85555 15.6322 3.74522 16.9851 5.09812C18.338 6.45103 19.2277 8.25564 19.3334 10.1667V10.5417Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         )
       case 'notification':
@@ -145,9 +154,14 @@ export default function Sidebar() {
                   {renderIcon(item.icon)}
                 </span>
                 <span className="text-sm md:text-base">{item.name}</span>
-                {item.name === 'Notifications' && unreadCount > 0 && (
+                {item.name === 'Notifications' && notificationUnreadCount > 0 && (
                   <span className="ml-auto bg-[#FFB900] text-black text-xs font-medium px-2 py-0.5 rounded-full">
-                    {unreadCount > 99 ? '99+' : unreadCount}
+                    {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+                  </span>
+                )}
+                {item.name === 'Chats' && chatUnreadCount > 0 && (
+                  <span className="ml-auto bg-[#FFB900] text-black text-xs font-medium px-2 py-0.5 rounded-full">
+                    {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
                   </span>
                 )}
               </Link>

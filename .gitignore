@@ -34,4 +34,8 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts 
+next-env.d.ts
+
+# backup folders
+allem-backup/
+allem-backup-version-with-chat/ 

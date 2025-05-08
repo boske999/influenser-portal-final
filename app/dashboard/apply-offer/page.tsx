@@ -31,17 +31,14 @@ export default function ApplyOfferPage() {
   const [proposal, setProposal] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [uploadError, setUploadError] = useState('')
   
   // Form state
   const [quote, setQuote] = useState('')
   const [publishDate, setPublishDate] = useState('')
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [paymentMethod, setPaymentMethod] = useState('')
-  const [videoFile, setVideoFile] = useState<File | null>(null)
-  const [videoUrl, setVideoUrl] = useState('')
   const [message, setMessage] = useState('')
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false)
   
   // Validation state
   const [errors, setErrors] = useState<{[key: string]: string}>({})
@@ -95,61 +92,6 @@ export default function ApplyOfferPage() {
     })
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    
-    if (files && files.length > 0) {
-      const file = files[0]
-      
-      // Check if file is a video
-      if (!file.type.startsWith('video/')) {
-        setUploadError('Please upload a video file')
-        return
-      }
-      
-      // Check if file is not too large (100MB)
-      if (file.size > 100 * 1024 * 1024) {
-        setUploadError('Video file is too large (max 100MB)')
-        return
-      }
-      
-      setVideoFile(file)
-      setUploadError('')
-    }
-  }
-
-  const uploadVideo = async (): Promise<string> => {
-    if (!videoFile) return ''
-    
-    const fileExt = videoFile.name.split('.').pop()
-    const fileName = `${uuidv4()}.${fileExt}`
-    const filePath = `${user!.id}/${fileName}`
-    
-    try {
-      // Upload the file without using onUploadProgress
-      const { error: uploadError } = await supabase.storage
-        .from('videos')
-        .upload(filePath, videoFile, {
-          cacheControl: '3600',
-          upsert: false
-        })
-        
-      if (uploadError) throw uploadError
-      
-      // Get public URL for the uploaded video
-      const { data: { publicUrl } } = supabase.storage
-        .from('videos')
-        .getPublicUrl(filePath)
-        
-      setUploadProgress(100) // Set to 100% when complete
-      return publicUrl
-    } catch (error: any) {
-      console.error('Error uploading video:', error.message)
-      setUploadError('Failed to upload video. Please try again.')
-      return ''
-    }
-  }
-
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {}
     
@@ -157,6 +99,7 @@ export default function ApplyOfferPage() {
     if (!publishDate) newErrors.publishDate = 'Please select a publish date'
     if (selectedPlatforms.length === 0) newErrors.platforms = 'Please select at least one platform'
     if (!paymentMethod) newErrors.paymentMethod = 'Please select a payment method'
+    if (proposal.disclaimer && !disclaimerAccepted) newErrors.disclaimer = 'You must accept the disclaimer to proceed'
     
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -170,16 +113,6 @@ export default function ApplyOfferPage() {
     setSubmitting(true)
     
     try {
-      // Upload video if provided
-      let uploadedVideoUrl = ''
-      if (videoFile) {
-        uploadedVideoUrl = await uploadVideo()
-        if (!uploadedVideoUrl && videoFile) {
-          setSubmitting(false)
-          return
-        }
-      }
-      
       // Create response in database
       const responseData = {
         proposal_id: proposalId,
@@ -189,9 +122,8 @@ export default function ApplyOfferPage() {
         proposed_publish_date: publishDate,
         platforms: selectedPlatforms,
         payment_method: paymentMethod,
-        uploaded_video_url: uploadedVideoUrl,
-        video_link: videoUrl,
-        message: message
+        message: message,
+        disclaimer_accepted: disclaimerAccepted
       }
       
       const { error } = await supabase
@@ -347,67 +279,6 @@ export default function ApplyOfferPage() {
             {errors.paymentMethod && <p className="text-red-500 text-sm">{errors.paymentMethod}</p>}
           </div>
 
-          {/* Video Upload */}
-          <div className="space-y-2">
-            <p className="block text-sm text-[#FFB900]">Upload Video</p>
-            <div className="bg-[#080808] border border-dashed border-white/20 rounded-lg p-6 text-center">
-              <input
-                type="file"
-                id="video"
-                onChange={handleFileChange}
-                accept="video/*"
-                className="hidden"
-              />
-              <label htmlFor="video" className="cursor-pointer block">
-                {videoFile ? (
-                  <div className="space-y-2">
-                    <p className="text-white">{videoFile.name}</p>
-                    <p className="text-sm text-gray-400">
-                      {(videoFile.size / (1024 * 1024)).toFixed(2)} MB
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="mx-auto w-12 h-12 bg-[#1E1E1E] rounded-full flex items-center justify-center">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 8V16M8 12H16" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <p className="text-gray-400">Click to upload or drag and drop</p>
-                    <p className="text-sm text-gray-500">MP4, MOV, AVI (max. 100MB)</p>
-                  </div>
-                )}
-              </label>
-              {uploadProgress > 0 && uploadProgress < 100 && (
-                <div className="mt-4">
-                  <div className="h-2 bg-[#1E1E1E] rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-[#FFB900]" 
-                      style={{ width: `${uploadProgress}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-sm text-gray-400 mt-1">Uploading: {uploadProgress}%</p>
-                </div>
-              )}
-              {uploadError && <p className="text-red-500 text-sm mt-2">{uploadError}</p>}
-            </div>
-          </div>
-
-          {/* Video Link */}
-          <div className="space-y-2">
-            <label htmlFor="videoLink" className="block text-sm text-[#FFB900]">
-              Or provide a video link
-            </label>
-            <input
-              type="url"
-              id="videoLink"
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
-              placeholder="https://..."
-              className="bg-[#080808] border border-white/10 rounded-lg py-3 px-4 w-full text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-[#FFB900] focus:border-[#FFB900]"
-            />
-          </div>
-
           {/* Message */}
           <div className="space-y-2">
             <label htmlFor="message" className="block text-sm text-[#FFB900]">
@@ -422,6 +293,30 @@ export default function ApplyOfferPage() {
               className="bg-[#080808] border border-white/10 rounded-lg py-3 px-4 w-full text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-[#FFB900] focus:border-[#FFB900]"
             ></textarea>
           </div>
+
+          {/* Disclaimer */}
+          {proposal.disclaimer && (
+            <div className="space-y-4">
+              <div className="p-4 bg-[#080808] border border-white/10 rounded-lg">
+                <h3 className="text-[#FFB900] font-medium mb-2">Legal Disclaimer</h3>
+                <p className="text-white text-sm whitespace-pre-line">{proposal.disclaimer}</p>
+              </div>
+              
+              <div className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  id="disclaimerAccepted"
+                  checked={disclaimerAccepted}
+                  onChange={(e) => setDisclaimerAccepted(e.target.checked)}
+                  className="mt-1"
+                />
+                <label htmlFor="disclaimerAccepted" className="text-white text-sm">
+                  I have read and agree to the terms in the disclaimer
+                </label>
+              </div>
+              {errors.disclaimer && <p className="text-red-500 text-sm">{errors.disclaimer}</p>}
+            </div>
+          )}
 
           {/* Submit Button */}
           <div>

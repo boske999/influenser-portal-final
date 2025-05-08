@@ -11,7 +11,7 @@ type Response = {
   id: string
   proposal_id: string
   user_id: string
-  status: 'accepted' | 'rejected'
+  status: 'accepted' | 'rejected' | 'pending_update'
   proposed_publish_date: string | null
   quote: string | null
   platforms: string[]
@@ -322,12 +322,14 @@ export default function ViewResponsePage() {
               <span className={`px-3 py-1 rounded-full text-sm ${
                 response.status === 'accepted' 
                   ? 'bg-green-900/20 text-green-500' 
-                  : 'bg-red-900/20 text-red-500'
+                  : response.status === 'pending_update'
+                    ? 'bg-yellow-900/20 text-yellow-500'
+                    : 'bg-red-900/20 text-red-500'
               }`}>
-                {response.status === 'accepted' ? 'Accepted' : 'Declined'}
+                {response.status === 'accepted' ? 'Accepted' : response.status === 'pending_update' ? 'Pending Update' : 'Declined'}
               </span>
               
-              {response.status === 'accepted' && renderAdminStatusBadge()}
+              {(response.status === 'accepted' || response.status === 'pending_update') && renderAdminStatusBadge()}
 
               <div className="text-sm text-gray-400">
                 Responded on: {new Date(response.created_at).toLocaleDateString()}
@@ -368,7 +370,7 @@ export default function ViewResponsePage() {
                 </div>
               </div>
               
-              {isRejectedByAdmin() && !updated && (
+              {(isRejectedByAdmin() || response.status === 'pending_update') && (
                 <div className="mt-6">
                   <Link
                     href={`/dashboard/edit-response?id=${response.id}`}

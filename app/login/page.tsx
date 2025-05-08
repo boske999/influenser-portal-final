@@ -53,14 +53,6 @@ export default function Login() {
     }
   }, [isAuthenticated, userData, authLoading, pageMounted]);
 
-  // Check for message in URL
-  useEffect(() => {
-    const message = searchParams.get('message')
-    if (message) {
-      AlertUtils.info('Notification', message.replace(/\+/g, ' '))
-    }
-  }, [searchParams])
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     

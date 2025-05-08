@@ -7,6 +7,7 @@ import { useAuth } from '../../../context/AuthContext'
 import { supabase } from '../../../lib/supabase'
 import ConfirmationModal from '../../../components/ConfirmationModal'
 import SystemMessages from '../../../components/SystemMessages'
+import LoadingTimeout from '../../../components/LoadingTimeout'
 
 type Proposal = {
   id: string
@@ -39,6 +40,7 @@ export default function ProposalDetailsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [chatId, setChatId] = useState<string | null>(null)
   
   useEffect(() => {
     const fetchProposal = async () => {
@@ -90,16 +92,29 @@ export default function ProposalDetailsPage() {
           }))
           setResponses(formattedResponses)
         }
-      } catch (error) {
-        console.error('Error fetching data:', error)
+        
+        // Fetch chat data
+        const { data: chatData, error: chatError } = await supabase
+          .from('chats')
+          .select('id')
+          .eq('proposal_id', id)
+          .order('created_at', { ascending: false })
+          .maybeSingle()
+          
+        if (chatError) {
+          console.error('Error fetching chat:', chatError)
+        } else {
+          setChatId(chatData?.id || null)
+        }
+      } catch (err) {
+        console.error('Error:', err)
+        SystemMessages.system.operationFailed('Failed to load proposal')
       } finally {
         setIsLoading(false)
       }
     }
     
-    if (id) {
-      fetchProposal()
-    }
+    fetchProposal()
   }, [id, router])
   
   // Format date range function
@@ -250,6 +265,7 @@ export default function ProposalDetailsPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#080808]">
         <div className="w-8 h-8 border-t-2 border-[#FFB900] rounded-full animate-spin"></div>
+        <LoadingTimeout isLoading={true} />
       </div>
     )
   }
@@ -258,7 +274,7 @@ export default function ProposalDetailsPage() {
     <div className="p-10">
       <div className="mb-10 flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Link href={`/admin/company/${proposal.id}`} className="text-[#FFB900]">
+          <Link href="/admin" className="text-[#FFB900]">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M19 12H5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M12 19L5 12L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -268,6 +284,17 @@ export default function ProposalDetailsPage() {
         </div>
         
         <div className="flex items-center space-x-4">
+          {chatId && (
+            <Link 
+              href={`/admin/chats/${chatId}?proposalId=${id}`}
+              className="px-4 py-2 bg-[#1A1A1A] text-[#FFB900] rounded-full hover:bg-[#252525] transition-colors flex items-center space-x-2"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 11.5C21.0034 12.8199 20.6951 14.1219 20.1 15.3C19.3944 16.7118 18.3098 17.8992 16.9674 18.7293C15.6251 19.5594 14.0782 19.9994 12.5 20C11.1801 20.0035 9.87812 19.6951 8.7 19.1L3 21L4.9 15.3C4.30493 14.1219 3.99656 12.8199 4 11.5C4.00061 9.92176 4.44061 8.37488 5.27072 7.03258C6.10083 5.69028 7.28825 4.6056 8.7 3.90003C9.87812 3.30496 11.1801 2.99659 12.5 3.00003H13C15.0843 3.11502 17.053 3.99479 18.5291 5.47089C20.0052 6.94699 20.885 8.91568 21 11V11.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span>View Chat</span>
+            </Link>
+          )}
           <Link 
             href={`/admin/proposal/${id}/edit`}
             className="px-4 py-2 bg-[#FFB900] text-black rounded-full hover:bg-[#E6A800] transition-colors"
@@ -351,23 +378,20 @@ export default function ProposalDetailsPage() {
         </div>
       </div>
       
-      <div>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-white text-2xl font-bold">Responses ({responses.length})</h2>
+      <div className="mb-12">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-white text-2xl font-bold">Responses</h2>
           <Link 
             href={`/admin/proposal/${id}/responses`} 
-            className="text-[#FFB900] flex items-center space-x-2"
+            className="text-[#FFB900]"
           >
-            <span>View All Responses</span>
-            <svg width="7" height="14" viewBox="0 0 7 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M1 1L6 7L1 13" stroke="#FFB900" strokeWidth="1.67" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            View All Responses
           </Link>
         </div>
         
         {responses.length === 0 ? (
-          <div className="bg-[#121212] border border-white/5 p-6 text-center">
-            <p className="text-gray-400">No responses yet</p>
+          <div className="bg-[#121212] border border-white/5 p-6 rounded-lg text-center">
+            <p className="text-gray-400">No responses yet.</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -418,4 +442,4 @@ export default function ProposalDetailsPage() {
       </div>
     </div>
   )
-} 
+}

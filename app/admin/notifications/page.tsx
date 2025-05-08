@@ -66,18 +66,15 @@ export default function AdminNotifications() {
     })
     
     // Determine where to navigate
-    if (notification.related_proposal_id && notification.related_response_id) {
-      // If both proposal and response are related, navigate to the response in the context of the proposal
-      router.push(`/admin/proposal/${notification.related_proposal_id}/responses`)
-    } else if (notification.related_proposal_id) {
-      // If only proposal is related, navigate to the proposal
-      router.push(`/admin/proposal/${notification.related_proposal_id}`)
+    if (notification.link_url) {
+      // Use the link_url as first priority if it exists
+      router.push(notification.link_url)
     } else if (notification.related_response_id) {
       // If only response is related, navigate to the response detail page
       router.push(`/admin/response/${notification.related_response_id}`)
-    } else if (notification.link_url) {
-      // Use the link_url as fallback
-      router.push(notification.link_url)
+    } else if (notification.related_proposal_id) {
+      // If only proposal is related, navigate to the proposal
+      router.push(`/admin/proposal/${notification.related_proposal_id}`)
     }
   }
   
