@@ -1,7 +1,7 @@
 import { createClient, type User, type Session } from '@supabase/supabase-js';
 import { handleSessionExpiration } from '../utils/auth';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://fbmdbvijfufsjpsuorxi.supabase.co';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Create global Supabase client

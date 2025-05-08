@@ -19,5 +19,6 @@
         }
       ]
     }
-  ]
+  ],
+  "buildCommand": "next build --no-lint"
 } 

@@ -54,7 +54,7 @@ export default function Chat() {
     // Subscribe to new messages
     const subscription = supabase
       .channel('messages')
-      .on('INSERT', (payload) => {
+      .on('INSERT', 'messages', (payload) => {
         setMessages(prev => [...prev, payload.new as Message])
       })
       .subscribe()
