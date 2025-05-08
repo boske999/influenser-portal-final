@@ -21,8 +21,13 @@ export default function Login() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Mark the page as mounted
+  // Mark the page as mounted and clear redirection lock
   useEffect(() => {
+    // Clear any existing redirection lock when login page loads
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(REDIRECT_KEY);
+    }
+    
     setPageMounted(true);
     
     // Cleanup to remove the lock when component unmounts
@@ -55,6 +60,11 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Clear any redirection locks before attempting login
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(REDIRECT_KEY);
+    }
     
     if (!email || !password) {
       AlertUtils.warning('Validation Error', 'Please enter both email and password')

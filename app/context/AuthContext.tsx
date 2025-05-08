@@ -187,6 +187,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Sign-out function
   const signOut = async () => {
     try {
+      // Clear any redirection locks on logout
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('login_redirect_check');
+      }
+      
       await signOutUser();
       setUser(null);
       setSession(null);

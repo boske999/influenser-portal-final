@@ -90,13 +90,19 @@ export async function middleware(request: NextRequest) {
       const destination = userData?.role === 'admin' ? '/admin' : '/dashboard';
       console.log(`User at login path, redirecting to ${destination}`);
       console.log("========= MIDDLEWARE END =========");
-      const redirectUrl = new URL(destination, request.url);
-      console.log("Redirect URL:", redirectUrl.toString());
-      const redirectResponse = NextResponse.redirect(redirectUrl);
-      // Add cache control headers
-      redirectResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      
+      // Ensure we always get a fresh URL without caching
+      const url = new URL(destination, request.url);
+      url.searchParams.append('t', Date.now().toString());
+      
+      const redirectResponse = NextResponse.redirect(url);
+      
+      // Ensure no caching happens
+      redirectResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
       redirectResponse.headers.set('Pragma', 'no-cache');
       redirectResponse.headers.set('Expires', '0');
+      redirectResponse.headers.set('Surrogate-Control', 'no-store');
+      
       return redirectResponse;
     }
     
