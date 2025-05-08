@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
+import { useChat } from '../../../context/ChatContext';
 import { supabase } from '../../../lib/supabase';
 import ChatMessage from '../../../components/ChatMessage';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,6 +18,7 @@ type ProposalInfo = {
 
 export default function ChatPage({ params }: { params: { id: string } }) {
   const { user, isLoading } = useAuth();
+  const { markMessagesAsRead } = useChat();
   const router = useRouter();
   const [proposal, setProposal] = useState<ProposalInfo | null>(null);
   const [responseId, setResponseId] = useState<string | null>(null);
@@ -42,6 +44,10 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
       try {
         setLoading(true);
+        
+        // Call markMessagesAsRead immediately when the page loads
+        // This helps update the sidebar badge right away
+        markMessagesAsRead();
         
         // Provera da li predlog postoji i da li korisnik ima pristup
         const { data: proposalData, error: proposalError } = await supabase
@@ -100,7 +106,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         const { data: chatData, error: chatError } = await supabase
           .from('chats')
           .select('id')
-          .eq('proposal_id', params.id);
+          .eq('proposal_id', params.id)
+          .eq('user_id', user.id);
           
         if (chatError) {
           console.error('Error checking chat existence:', chatError);
@@ -115,7 +122,10 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           // Kreiraj nov chat
           const { data: newChat, error: createError } = await supabase
             .from('chats')
-            .insert({ proposal_id: params.id })
+            .insert({ 
+              proposal_id: params.id, 
+              user_id: user.id  // Ensure the chat is associated with this user
+            })
             .select()
             .single();
             
@@ -128,10 +138,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           
           activeChat = newChat;
         } else {
-          // Koristi najnoviji chat ako ih ima više
-          activeChat = chatData.sort((a, b) => 
-            new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-          )[0];
+          // Use the user's chat for this proposal
+          activeChat = chatData[0];
         }
         
         setChatId(activeChat.id);
@@ -183,6 +191,9 @@ export default function ChatPage({ params }: { params: { id: string } }) {
               .from('chat_messages')
               .update({ is_read: true })
               .in('id', unreadIds);
+            
+            // Update the global unread count
+            markMessagesAsRead();
           }
         }
       } catch (err: any) {
@@ -196,7 +207,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     if (!isLoading) {
       fetchProposalInfo();
     }
-  }, [user, isLoading, params.id, router]);
+  }, [user, isLoading, params.id, router, markMessagesAsRead]);
   
   // Real-time pretplata za nove poruke
   useEffect(() => {
@@ -261,6 +272,9 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             .from('chat_messages')
             .update({ is_read: true })
             .eq('id', payload.new.id);
+          
+          // Update the global unread count
+          markMessagesAsRead();
         }
       })
       .subscribe((status) => {
@@ -277,7 +291,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       console.log('Cleaning up subscription for chat:', chatId);
       supabase.removeChannel(channel);
     };
-  }, [chatId, user]);
+  }, [chatId, user, markMessagesAsRead]);
   
   // Scroll na dno kada se promene poruke
   useEffect(() => {

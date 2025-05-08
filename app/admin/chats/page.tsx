@@ -17,7 +17,6 @@ type ChatMessage = {
   created_at: string;
   is_read: boolean;
   user_id: string;
-  users: ChatUser;
 };
 
 type Proposal = {
@@ -29,8 +28,10 @@ type Proposal = {
 type Chat = {
   id: string;
   proposal_id: string;
+  user_id: string;
   created_at: string;
   proposals: Proposal;
+  users: ChatUser;
   chat_messages: ChatMessage[];
 };
 
@@ -38,22 +39,30 @@ type ProcessedChat = {
   id: string;
   proposalId: string;
   proposalName: string;
-  latestMessage: any | null;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  latestMessage: string | null;
+  latestMessageTime: string | null;
   unreadCount: number;
   created_at: string;
-  userEmail: string | null;
 };
 
 type GroupedChats = {
   [proposalId: string]: {
     proposalName: string;
-    chats: ProcessedChat[];
+    users: {
+      [userId: string]: {
+        userName: string;
+        userEmail: string;
+        chat: ProcessedChat;
+      }
+    }
   };
 };
 
 export default function AdminChatsPage() {
   const [loading, setLoading] = useState(true);
-  const [chats, setChats] = useState<ProcessedChat[]>([]);
   const [groupedChats, setGroupedChats] = useState<GroupedChats>({});
   const router = useRouter();
   const { user } = useAuth();
@@ -71,21 +80,22 @@ export default function AdminChatsPage() {
           .select(`
             id,
             proposal_id,
+            user_id,
             created_at,
             proposals:proposal_id (
               id,
               title
+            ),
+            users:user_id (
+              full_name,
+              email
             ),
             chat_messages (
               id,
               message,
               created_at,
               is_read,
-              user_id,
-              users:user_id (
-                full_name,
-                email
-              )
+              user_id
             )
           `)
           .order('created_at', { ascending: false });
@@ -94,74 +104,52 @@ export default function AdminChatsPage() {
           console.error('Error fetching chats:', error);
           return;
         }
-
-        // Process the data to get the latest message and user info
-        const processedChats = await Promise.all((data || []).map(async (chat: any) => {
+        
+        // Process chats with their messages
+        const processedChats = (data || []).map((chat: any) => {
           const messages = chat.chat_messages || [];
-          // Sort messages by date (newest first)
-          const sortedMessages = [...messages].sort(
-            (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          );
-          
-          const latestMessage = sortedMessages[0] || null;
-          const unreadCount = messages.filter((msg: any) => !msg.is_read && msg.user_id !== user.id).length;
-          
-          // Find the user who is not the admin (to get the chat name)
-          const userMessage = messages.find((msg: ChatMessage) => msg.user_id !== user.id);
-          let userEmail = userMessage?.users?.email || null;
-          
-          // If we couldn't find a user from messages, look for the user in responses
-          if (!userEmail) {
-            try {
-              // First get the user_id from the response
-              const { data: responseData, error: responseError } = await supabase
-                .from('responses')
-                .select('user_id')
-                .eq('proposal_id', chat.proposal_id)
-                .single();
-                
-              if (!responseError && responseData && responseData.user_id) {
-                // Then fetch the user's email using the user_id
-                const { data: userData, error: userError } = await supabase
-                  .from('users')
-                  .select('email')
-                  .eq('id', responseData.user_id)
-                  .single();
-                  
-                if (!userError && userData && userData.email) {
-                  userEmail = userData.email;
-                }
-              }
-            } catch (err) {
-              console.log('No response found for this proposal');
-            }
-          }
+          const latestMessage = messages.length > 0 
+            ? messages.sort((a: any, b: any) => 
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+              )[0]
+            : null;
+            
+          const unreadCount = messages.filter((msg: any) => 
+            !msg.is_read && msg.user_id !== user.id
+          ).length;
           
           return {
             id: chat.id,
             proposalId: chat.proposal_id,
             proposalName: chat.proposals?.title || 'Unnamed Proposal',
-            latestMessage,
+            userId: chat.user_id,
+            userName: chat.users?.full_name || 'Unknown User',
+            userEmail: chat.users?.email || 'Unknown Email',
+            latestMessage: latestMessage?.message || null,
+            latestMessageTime: latestMessage?.created_at || null,
             unreadCount,
-            created_at: chat.created_at,
-            userEmail
+            created_at: chat.created_at
           };
-        }));
+        });
         
-        setChats(processedChats);
-        
-        // Group chats by proposal
+        // Group chats by proposal AND user
         const grouped: GroupedChats = {};
         
         processedChats.forEach(chat => {
+          // Create proposal group if it doesn't exist
           if (!grouped[chat.proposalId]) {
             grouped[chat.proposalId] = {
               proposalName: chat.proposalName,
-              chats: []
+              users: {}
             };
           }
           
-          grouped[chat.proposalId].chats.push(chat);
+          // Add this chat to the appropriate user within the proposal group
+          grouped[chat.proposalId].users[chat.userId] = {
+            userName: chat.userName,
+            userEmail: chat.userEmail,
+            chat: chat
+          };
         });
         
         setGroupedChats(grouped);
@@ -200,52 +188,55 @@ export default function AdminChatsPage() {
         </div>
       ) : (
         <div className="grid gap-6">
-          {Object.entries(groupedChats).map(([proposalId, group]) => (
+          {Object.entries(groupedChats).map(([proposalId, proposal]) => (
             <div key={proposalId} className="bg-[#121212] border border-white/10 rounded-lg p-4">
               <h2 className="text-xl font-bold mb-4 text-[#FFB900] border-b border-white/10 pb-2">
-                {group.proposalName}
+                {proposal.proposalName}
               </h2>
               
               <div className="grid gap-3">
-                {group.chats.map(chat => (
-                  <div
-                    key={chat.id}
-                    onClick={() => handleChatClick(chat.id, chat.proposalId)}
-                    className="bg-[#1A1A1A] border border-white/5 rounded-lg p-3 cursor-pointer hover:bg-[#242424] transition-colors"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="font-medium text-sm text-white/80">
-                        Chat name: {chat.userEmail || 'Unknown user'}
+                {Object.entries(proposal.users).map(([userId, userData]) => {
+                  const chat = userData.chat;
+                  
+                  return (
+                    <div
+                      key={chat.id}
+                      onClick={() => handleChatClick(chat.id, chat.proposalId)}
+                      className="bg-[#1A1A1A] border border-white/5 rounded-lg p-3 cursor-pointer hover:bg-[#242424] transition-colors"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="font-medium text-sm text-white/80">
+                          User: {userData.userEmail || userData.userName}
+                        </div>
+                        {chat.unreadCount > 0 && (
+                          <span className="bg-[#FFB900] text-black text-xs font-medium px-2 py-1 rounded-full">
+                            {chat.unreadCount}
+                          </span>
+                        )}
                       </div>
-                      {chat.unreadCount > 0 && (
-                        <span className="bg-[#FFB900] text-black text-xs font-medium px-2 py-1 rounded-full">
-                          {chat.unreadCount}
-                        </span>
-                      )}
+                      
+                      <div className="text-sm text-gray-400 mb-1">
+                        {chat.latestMessage ? (
+                          <>
+                            <span className="font-medium text-white">
+                              {chat.latestMessage.length > 60 
+                                ? `${chat.latestMessage.substring(0, 60)}...` 
+                                : chat.latestMessage}
+                            </span>
+                          </>
+                        ) : (
+                          <span>No messages yet</span>
+                        )}
+                      </div>
+                      
+                      <div className="text-xs text-gray-500">
+                        {chat.latestMessageTime 
+                          ? new Date(chat.latestMessageTime).toLocaleString() 
+                          : new Date(chat.created_at).toLocaleString()}
+                      </div>
                     </div>
-                    
-                    <div className="text-sm text-gray-400 mb-1">
-                      {chat.latestMessage ? (
-                        <>
-                          <span className="font-medium text-white">
-                            {chat.latestMessage.users?.email || 'Unknown'}:
-                          </span>{' '}
-                          {chat.latestMessage.message.length > 60 
-                            ? `${chat.latestMessage.message.substring(0, 60)}...` 
-                            : chat.latestMessage.message}
-                        </>
-                      ) : (
-                        <span>No messages yet</span>
-                      )}
-                    </div>
-                    
-                    <div className="text-xs text-gray-500">
-                      {chat.latestMessage 
-                        ? new Date(chat.latestMessage.created_at).toLocaleString() 
-                        : new Date(chat.created_at).toLocaleString()}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}

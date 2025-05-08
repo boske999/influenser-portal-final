@@ -53,114 +53,55 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentProposalId, setCurrentProposalId] = useState<string | null>(null);
 
   const fetchChat = async (proposalId: string) => {
-    // Prevent duplicate fetches for the same proposal
-    if (proposalId === currentProposalId && chatId) {
-      console.log('Chat already loaded for proposal:', proposalId);
-      return;
-    }
-    
     if (!user || !proposalId) return;
     
     setLoading(true);
     setError(null);
     
-    // Add a timeout in case the request takes too long
-    const timeoutId = setTimeout(() => {
-      setError('Request timed out. Please try again.');
-      setLoading(false);
-    }, 10000); // 10 seconds timeout
-    
     try {
-      // Find all chats for this proposal
-      const { data: chatData, error: chatError } = await supabase
+      // Find or create a chat for this user and proposal
+      const { data: existingChat, error: chatError } = await supabase
         .from('chats')
-        .select('*')
-        .eq('proposal_id', proposalId);
-      
-      // Clear the timeout since the request completed
-      clearTimeout(timeoutId);
-      
-      if (chatError) {
+        .select('id')
+        .eq('proposal_id', proposalId)
+        .eq('user_id', user.id)
+        .single();
+        
+      if (chatError && chatError.code !== 'PGRST116') {
         console.error('Error fetching chat:', chatError);
         setError('Failed to load chat');
         setLoading(false);
         return;
       }
       
-      // Handle the case when no chat exists
-      if (!chatData || chatData.length === 0) {
-        // Chat doesn't exist yet, we need to create one
-        try {
-          console.log('Creating new chat for proposal:', proposalId);
-          const { data: newChat, error: createError } = await supabase
-            .from('chats')
-            .insert({ proposal_id: proposalId })
-            .select()
-            .single();
-            
-          if (createError) {
-            console.error('Error creating chat:', createError);
-            setError('Failed to create chat');
-            setLoading(false);
-            return;
-          }
+      let currentChatId = existingChat?.id;
+      
+      // If no chat exists, create one
+      if (!currentChatId) {
+        const { data: newChat, error: createError } = await supabase
+          .from('chats')
+          .insert({
+            proposal_id: proposalId,
+            user_id: user.id
+          })
+          .select('id')
+          .single();
           
-          console.log('Successfully created new chat:', newChat);
-          setChatId(newChat.id);
-          setCurrentProposalId(proposalId);
-          setMessages([]);
-        } catch (createErr: any) {
-          console.error('Error creating chat:', createErr);
+        if (createError) {
+          console.error('Error creating chat:', createError);
           setError('Failed to create chat');
           setLoading(false);
           return;
         }
-      } else {
-        // Handle the case when multiple chats exist - use the most recent one
-        console.log(`Found ${chatData.length} chat(s) for proposal:`, proposalId);
-        const mostRecentChat = chatData.sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )[0];
         
-        console.log('Using most recent chat:', mostRecentChat.id);
-        setChatId(mostRecentChat.id);
-        setCurrentProposalId(proposalId);
-        
-        // Fetch messages for this chat
-        await fetchMessages(mostRecentChat.id);
-        
-        // Clean up duplicate chats if there are more than one
-        if (chatData.length > 1) {
-          console.warn(`Found ${chatData.length} chats for proposal ${proposalId}. Using the most recent one.`);
-          
-          // Keep the most recent chat and delete the others
-          const chatIdsToDelete = chatData
-            .filter(chat => chat.id !== mostRecentChat.id)
-            .map(chat => chat.id);
-            
-          if (chatIdsToDelete.length > 0) {
-            try {
-              // Delete the duplicate chats
-              const { error: deleteError } = await supabase
-                .from('chats')
-                .delete()
-                .in('id', chatIdsToDelete);
-                
-              if (deleteError) {
-                console.error('Error deleting duplicate chats:', deleteError);
-              } else {
-                console.log(`Successfully deleted ${chatIdsToDelete.length} duplicate chats`);
-              }
-            } catch (deleteErr) {
-              console.error('Error deleting duplicate chats:', deleteErr);
-            }
-          }
-        }
+        currentChatId = newChat.id;
       }
       
+      setChatId(currentChatId);
+      setCurrentProposalId(proposalId);
+      await fetchMessages(currentChatId);
+      
     } catch (err: any) {
-      // Clear the timeout in case of error
-      clearTimeout(timeoutId);
       console.error('Chat fetch error:', err);
       setError(err.message || 'An error occurred');
     } finally {
@@ -172,8 +113,38 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     if (!user || !chatId) return;
     
     try {
+      // First verify this chat belongs to the current user
+      const { data: chatData, error: chatError } = await supabase
+        .from('chats')
+        .select('id, user_id, proposal_id')
+        .eq('id', chatId)
+        .single();
+      
+      if (chatError) {
+        console.error('Error verifying chat ownership:', chatError);
+        setError('Failed to load messages: chat not found');
+        return;
+      }
+      
+      // Double check chat ownership - this is a failsafe beyond RLS
+      if (chatData.user_id !== user.id) {
+        // Check if user is the admin of this proposal
+        const { data: proposalData, error: proposalError } = await supabase
+          .from('proposals')
+          .select('created_by')
+          .eq('id', chatData.proposal_id)
+          .single();
+        
+        if (proposalError || proposalData.created_by !== user.id) {
+          console.error('Unauthorized attempt to access chat:', chatId);
+          setError('Unauthorized: You do not have permission to view this chat');
+          return;
+        }
+      }
+      
+      // Use the view instead of joining tables directly
       const { data: messagesData, error: messagesError } = await supabase
-        .from('chat_messages')
+        .from('chat_messages_with_users')
         .select(`
           id,
           chat_id,
@@ -181,7 +152,10 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
           message,
           created_at,
           is_read,
-          user:users(full_name, email)
+          attachment_url,
+          file_name,
+          full_name,
+          email
         `)
         .eq('chat_id', chatId)
         .order('created_at', { ascending: true });
@@ -200,7 +174,12 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         message: msg.message,
         created_at: msg.created_at,
         is_read: msg.is_read,
-        user: msg.user
+        attachment_url: msg.attachment_url,
+        file_name: msg.file_name,
+        user: {
+          full_name: msg.full_name,
+          email: msg.email
+        }
       }));
       
       setMessages(formattedMessages);
@@ -232,7 +211,20 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     if (!user || !chatId) return;
     
     try {
-      // Priprema nove poruke
+      // First verify this chat exists and belongs to the current user
+      const { data: chatData, error: chatError } = await supabase
+        .from('chats')
+        .select('id, user_id, proposal_id')
+        .eq('id', chatId)
+        .single();
+      
+      if (chatError) {
+        console.error('Error verifying chat for sending message:', chatError);
+        setError('Failed to send message: chat not found');
+        throw new Error('Chat not found');
+      }
+      
+      // Prepare the new message
       const newMessage = {
         chat_id: chatId,
         user_id: user.id,
@@ -240,7 +232,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         is_read: false,
       };
       
-      // Kreiraj optimističku poruku sa privremenim ID-om pre slanja
+      // Create optimistic message with temporary ID for immediate UI update
       const tempId = `temp-${Date.now()}`;
       const optimisticMessage: ChatMessage = {
         id: tempId,
@@ -255,11 +247,11 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         }
       };
       
-      // Dodaj optimističku poruku u niz odmah (bez čekanja API odgovora)
+      // Add optimistic message to UI immediately
       console.log('Adding optimistic message to UI immediately:', optimisticMessage);
       setMessages(prevMessages => [...prevMessages, optimisticMessage]);
       
-      // Pošalji poruku serveru
+      // Send message to server
       const { data, error } = await supabase
         .from('chat_messages')
         .insert(newMessage)
@@ -268,20 +260,20 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (error) {
         console.error('Error sending message:', error);
-        // Ukloni optimističku poruku u slučaju greške
+        // Remove optimistic message on error
         setMessages(prevMessages => prevMessages.filter(msg => msg.id !== tempId));
         setError('Failed to send message');
         throw new Error('Failed to send message');
       }
       
-      // Dobavi korisničke podatke za ažuriranje poruke
+      // Fetch user data to complete the real message
       const { data: userData } = await supabase
         .from('users')
         .select('full_name, email')
         .eq('id', user.id)
         .single();
       
-      // Ažuriraj optimističku poruku sa pravim ID-om i vremenom
+      // Update optimistic message with real ID and timestamp
       const realMessage: ChatMessage = {
         id: data.id,
         chat_id: chatId,
@@ -295,7 +287,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         }
       };
       
-      // Ažuriraj niz poruka sa pravom porukom (zameni privremenu)
+      // Replace temporary message with real one
       console.log('Replacing optimistic message with real message:', realMessage);
       setMessages(prevMessages => 
         prevMessages.map(msg => 
@@ -303,6 +295,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         )
       );
       
+      return data.id; // Return the real message ID
     } catch (err: any) {
       console.error('Message send error:', err);
       setError(err.message || 'An error occurred');
@@ -332,20 +325,118 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
       
-      // Update local unread count
-      setUnreadCount(0);
-      
-      // Update local messages
+      // Update local state for this specific chat
       setMessages(prevMessages => 
         prevMessages.map(msg => 
           unreadMessageIds.includes(msg.id) ? { ...msg, is_read: true } : msg
         )
       );
       
+      // Update local unread count for this chat
+      setUnreadCount(0);
+      
+      // Trigger global unread count update
+      fetchGlobalUnreadCount();
+      
     } catch (err: any) {
       console.error('Mark as read error:', err);
     }
   };
+  
+  // Create reusable function for fetching global unread count
+  const fetchGlobalUnreadCount = async () => {
+    if (!user) return;
+    
+    try {
+      // First, immediately set unread count to 0 if we're viewing a chat
+      // This provides immediate feedback in the UI
+      if (chatId) {
+        console.log('Immediately setting unread count to 0 for active chat');
+        setUnreadCount(0);
+      }
+      
+      // Then fetch the actual count from the database for accuracy
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select(`
+          id,
+          chat:chats!inner(
+            user_id
+          )
+        `)
+        .eq('is_read', false)
+        .neq('user_id', user.id)
+        .eq('chats.user_id', user.id);
+      
+      if (error) {
+        console.error('Error fetching unread count:', error);
+        return;
+      }
+      
+      setUnreadCount(data?.length || 0);
+      console.log('Updated unread message count:', data?.length || 0);
+    } catch (err) {
+      console.error('Error fetching unread count:', err);
+    }
+  };
+  
+  // Add a listener for chat_messages table changes
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase.channel('chat_unread_count');
+    
+    channel
+      .on('postgres_changes', {
+        event: '*', // Listen for all events
+        schema: 'public',
+        table: 'chat_messages',
+        filter: `is_read=eq.false`,
+      }, () => {
+        // Refetch the unread count when any change happens to unread messages
+        fetchGlobalUnreadCount();
+      })
+      .subscribe();
+    
+    // Initial fetch of unread count
+    fetchGlobalUnreadCount();
+    
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [user]);
+  
+  // Track overall unread message count across all chats
+  useEffect(() => {
+    if (!user) return;
+    
+    let isSubscribed = true;
+    
+    // Initial fetch
+    fetchGlobalUnreadCount();
+    
+    // Subscribe to changes in the chat_messages table for all messages
+    // This ensures we update counts when messages are marked as read
+    const subscription = supabase
+      .channel('unread_messages_updates')
+      .on('postgres_changes', {
+        event: 'UPDATE', // Listen for update events
+        schema: 'public',
+        table: 'chat_messages',
+        filter: `is_read=eq.true`, // Filter for messages being marked as read
+      }, () => {
+        // Refetch the unread count when messages are marked as read
+        if (isSubscribed) {
+          fetchGlobalUnreadCount();
+        }
+      })
+      .subscribe();
+    
+    return () => {
+      isSubscribed = false;
+      subscription.unsubscribe();
+    };
+  }, [user]);
   
   // Set up real-time updates when chatId changes
   useEffect(() => {
@@ -357,7 +448,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const channelName = `chat-${chatId}-${Date.now()}`;
     console.log('Creating channel:', channelName);
     
-    // Reference na poslednje poznate poruke za upoređivanje da bi sprečili dupliranje
+    // Track known message IDs to prevent duplicates
     const knownMessageIds = new Set(messages.map(msg => msg.id));
     
     // Subscribe to new messages
@@ -372,20 +463,20 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       }, async (payload: any) => {
         console.log('Received new message via postgres_changes:', payload);
         
-        // Preskoči ako je poruka već poznata (moguće iz optimističkog ažuriranja)
+        // Skip if message already known (possibly from optimistic update)
         if (knownMessageIds.has(payload.new.id)) {
           console.log('Message already known, skipping:', payload.new.id);
           return;
         }
         
-        // Preskoči ako je poruku poslao trenutni korisnik (već je obrađena kroz optimistički update)
+        // Skip if message was sent by current user (already handled by optimistic update)
         if (payload.new.user_id === user?.id) {
           console.log('Skipping subscription update for own message');
           return;
         }
         
-        // When a new message comes in, fetch the user data
         try {
+          // Fetch user data for the message
           const { data: userData, error: userError } = await supabase
             .from('users')
             .select('full_name, email')
@@ -396,6 +487,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
             console.error('Error fetching user data for new message:', userError);
           }
           
+          // Create a complete message object
           const newMessage: ChatMessage = {
             id: payload.new.id,
             chat_id: payload.new.chat_id,
@@ -403,30 +495,32 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
             message: payload.new.message,
             created_at: payload.new.created_at,
             is_read: payload.new.is_read,
+            attachment_url: payload.new.attachment_url,
+            file_name: payload.new.file_name,
             user: userData || { full_name: null, email: null },
           };
           
-          // Dodaj ID nove poruke u set poznatih ID-ova
+          // Add message ID to known set
           knownMessageIds.add(newMessage.id);
           
           console.log('Adding new message to state:', newMessage);
           
-          // Add the new message to the messages array
+          // Add the new message to state
           setMessages(prevMessages => {
-            // Check if message already exists to prevent duplicates
+            // Check for duplicates
             if (prevMessages.some(msg => msg.id === newMessage.id)) {
               console.log('Message already exists, skipping:', newMessage.id);
               return prevMessages;
             }
+            
             console.log('New message added to state:', newMessage.id);
             return [...prevMessages, newMessage];
           });
           
-          // If the message is from someone else, increment unread count
+          // If message is from someone else, mark as read since chat is open
           if (payload.new.user_id !== user?.id) {
             setUnreadCount(prev => prev + 1);
             
-            // Automatski označi poruku kao pročitanu ako je chat otvoren
             await supabase
               .from('chat_messages')
               .update({ is_read: true })
@@ -451,59 +545,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       console.log('Cleaning up subscription for chat:', chatId);
       supabase.removeChannel(channel);
     };
-  }, [chatId, user]);
-  
-  // Track overall unread message count across all chats
-  useEffect(() => {
-    if (!user) return;
-    
-    let isSubscribed = true;
-    
-    const fetchUnreadCount = async () => {
-      if (!isSubscribed) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('chat_messages')
-          .select('id', { count: 'exact' })
-          .eq('is_read', false)
-          .neq('user_id', user.id);
-        
-        if (error) {
-          console.error('Error fetching unread count:', error);
-          return;
-        }
-        
-        if (isSubscribed) {
-          setUnreadCount(data?.length || 0);
-        }
-      } catch (err) {
-        console.error('Error fetching unread count:', err);
-      }
-    };
-    
-    fetchUnreadCount();
-    
-    // Subscribe to changes in the chat_messages table for unread messages
-    const subscription = supabase
-      .channel('unread_messages')
-      .on('postgres_changes', {
-        event: '*', // Listen for all events
-        schema: 'public',
-        table: 'chat_messages',
-      }, () => {
-        // Refetch the unread count when any change happens
-        if (isSubscribed) {
-          fetchUnreadCount();
-        }
-      })
-      .subscribe();
-    
-    return () => {
-      isSubscribed = false;
-      subscription.unsubscribe();
-    };
-  }, [user]);
+  }, [chatId, user, messages]);
   
   return (
     <ChatContext.Provider

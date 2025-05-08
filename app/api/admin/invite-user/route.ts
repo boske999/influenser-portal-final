@@ -129,6 +129,28 @@ export async function POST(request: NextRequest) {
     const clientUrl = request.headers.get('origin') || 'http://localhost:3000';
     const registrationUrl = `${clientUrl}/complete-registration?email=${encodeURIComponent(email)}&token=${token}`;
     
+    // Pošaljemo email koristeći direktno Supabase inviteUserByEmail
+    // ALI postavimo URL koji ćemo koristiti mi
+    let emailSent = false;
+    try {
+      console.log('Sending invitation email via Supabase Auth');
+      
+      // Prvo pokušamo sa inviteUserByEmail - koja samo šalje mejl, ne pravi automatski korisnika
+      const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+        // Ovde je ključna promena - prosleđujemo naš URL sa našim tokenom
+        redirectTo: registrationUrl
+      });
+      
+      if (inviteError) {
+        console.error('Error sending invitation email:', inviteError);
+      } else {
+        emailSent = true;
+        console.log('Invitation email sent successfully to:', email);
+      }
+    } catch (err) {
+      console.error('Error in email sending process:', err);
+    }
+    
     return NextResponse.json(
       { 
         success: true, 
@@ -137,7 +159,8 @@ export async function POST(request: NextRequest) {
           invitation_id: invitationId,
           registration_url: registrationUrl,
           email,
-          token
+          token,
+          email_sent: emailSent
         } 
       },
       { status: 200 }

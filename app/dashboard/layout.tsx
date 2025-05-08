@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../context/AuthContext'
 import Sidebar from '../components/Sidebar'
-import { NotificationProvider } from '../context/NotificationContext'
+import ClientProviders from '../components/ClientProviders'
 
 // Create a redirection key unique to this layout to track redirects
 const REDIRECT_KEY = 'dashboard_redirect_check';
@@ -73,7 +73,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <NotificationProvider>
+    <ClientProviders>
       <div className="app-layout">
         <Sidebar />
         <main className="app-layout-content">
@@ -82,6 +82,6 @@ export default function DashboardLayout({
           </div>
         </main>
       </div>
-    </NotificationProvider>
+    </ClientProviders>
   )
 } 

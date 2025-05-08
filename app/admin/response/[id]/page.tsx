@@ -32,7 +32,8 @@ type ResponseDetail = {
 }
 
 export default function ResponseDetailPage() {
-  const { id } = useParams()
+  const params = useParams()
+  const id = params?.id ? (typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '') : ''
   const router = useRouter()
   const { user } = useAuth()
   const [response, setResponse] = useState<ResponseDetail | null>(null)
@@ -42,6 +43,7 @@ export default function ResponseDetailPage() {
   const [adminMessage, setAdminMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUpdateAction, setIsUpdateAction] = useState(false)
+  const [isCreatingChat, setIsCreatingChat] = useState(false)
   
   useEffect(() => {
     const fetchResponseDetails = async () => {
@@ -247,6 +249,48 @@ export default function ResponseDetailPage() {
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
   }
   
+  // Update the function to only find and open existing chats
+  const handleOpenChat = async () => {
+    if (!response) return;
+    
+    if (response.chat_id) {
+      // If chat exists in the response data, navigate to it
+      router.push(`/admin/chats/${response.chat_id}?proposalId=${response.proposal_id}`);
+    } else {
+      // We'll search for any chat with this user and proposal
+      setIsCreatingChat(true);
+      
+      try {
+        // Try to find any existing chat for this user and proposal
+        const { data: existingChat, error } = await supabase
+          .from('chats')
+          .select('id')
+          .eq('proposal_id', response.proposal_id)
+          .eq('user_id', response.user_id)
+          .single();
+          
+        if (error) {
+          if (error.code === 'PGRST116') {
+            // No chat exists with this user
+            alert('No chat exists with this user yet.');
+          } else {
+            console.error('Error finding chat:', error);
+            alert('Failed to find chat');
+          }
+          setIsCreatingChat(false);
+          return;
+        }
+        
+        // Navigate to the existing chat
+        router.push(`/admin/chats/${existingChat.id}?proposalId=${response.proposal_id}`);
+      } catch (err) {
+        console.error('Chat lookup error:', err);
+        alert('An error occurred while looking for the chat');
+        setIsCreatingChat(false);
+      }
+    }
+  };
+  
   if (isLoading || !response) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#080808]">
@@ -277,37 +321,20 @@ export default function ResponseDetailPage() {
       <div className="bg-[#121212] border border-white/5 p-8 rounded-lg mb-10">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-white text-3xl font-bold">Response Details</h1>
-          <div className="flex space-x-4">
-            {response.chat_id ? (
-              <Link
-                href={`/admin/chats/${response.chat_id}?proposalId=${response.proposal_id}`}
-                className="px-4 py-2 bg-[#1A1A1A] text-[#FFB900] rounded-full hover:bg-[#252525] transition-colors flex items-center space-x-2"
-              >
+          <div>
+            <button
+              onClick={handleOpenChat}
+              disabled={isCreatingChat}
+              className="px-4 py-2 bg-[#1A1A1A] text-[#FFB900] rounded-full hover:bg-[#252525] transition-colors flex items-center space-x-2"
+            >
+              {isCreatingChat ? (
+                <div className="w-5 h-5 border-t-2 border-[#FFB900] rounded-full animate-spin mr-2"></div>
+              ) : (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M21 11.5C21.0034 12.8199 20.6951 14.1219 20.1 15.3C19.3944 16.7118 18.3098 17.8992 16.9674 18.7293C15.6251 19.5594 14.0782 19.9994 12.5 20C11.1801 20.0035 9.87812 19.6951 8.7 19.1L3 21L4.9 15.3C4.30493 14.1219 3.99656 12.8199 4 11.5C4.00061 9.92176 4.44061 8.37488 5.27072 7.03258C6.10083 5.69028 7.28825 4.6056 8.7 3.90003C9.87812 3.30496 11.1801 2.99659 12.5 3.00003H13C15.0843 3.11502 17.053 3.99479 18.5291 5.47089C20.0052 6.94699 20.885 8.91568 21 11V11.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                <span>View Chat</span>
-              </Link>
-            ) : (
-              <Link
-                href={`/admin/proposal/${response.proposal_id}`}
-                className="px-4 py-2 bg-[#1A1A1A] text-white rounded-full hover:bg-[#252525] transition-colors"
-              >
-                View Proposal
-              </Link>
-            )}
-            
-            <button
-              onClick={() => {
-                setShowResponseForm(true);
-                setIsUpdateAction(true);
-                if (response.admin_response?.message_to_user) {
-                  setAdminMessage(response.admin_response.message_to_user);
-                }
-              }}
-              className="px-4 py-2 bg-[#FFB900] text-black rounded-full hover:bg-[#E6A800] transition-colors"
-            >
-              {response.admin_response ? 'Update Response' : 'Respond'}
+              )}
+              <span>Open Chat</span>
             </button>
           </div>
         </div>

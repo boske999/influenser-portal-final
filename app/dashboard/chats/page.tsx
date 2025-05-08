@@ -103,11 +103,12 @@ export default function ChatsPage() {
           
           rawChats = Object.values(groupedChats);
         } else {
-          // Regular user only sees chats for proposals they've responded to
+          // Regular user only sees chats for proposals they've responded to and only their own chats
           const { data, error } = await supabase
             .from('chats')
             .select('id, proposal_id, created_at')
-            .in('proposal_id', proposalIds);
+            .in('proposal_id', proposalIds)
+            .eq('user_id', user.id); // Filter by user_id to ensure users only see their own chats
             
           if (error) {
             console.error('Error fetching chats for user:', error);
@@ -116,15 +117,8 @@ export default function ChatsPage() {
             return;
           }
           
-          // Group chats by proposal_id and keep only the most recent one
-          const groupedChats = data.reduce((acc: Record<string, any>, chat: any) => {
-            if (!acc[chat.proposal_id] || new Date(chat.created_at) > new Date(acc[chat.proposal_id].created_at)) {
-              acc[chat.proposal_id] = chat;
-            }
-            return acc;
-          }, {});
-          
-          rawChats = Object.values(groupedChats);
+          // For regular users, we can use the direct results as we're already filtering by user_id
+          rawChats = data;
         }
         
         // Process each chat with additional details

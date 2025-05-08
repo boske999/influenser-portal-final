@@ -9,6 +9,7 @@ export default function SendInvitePage() {
   const [error, setError] = useState<string | null>(null)
   const [logs, setLogs] = useState<string[]>([])
   const [registrationUrl, setRegistrationUrl] = useState<string | null>(null)
+  const [emailSent, setEmailSent] = useState<boolean | null>(null)
 
   const addLog = (log: string) => {
     setLogs(prev => [...prev, log]);
@@ -26,6 +27,7 @@ export default function SendInvitePage() {
     setError(null)
     setMessage(null)
     setRegistrationUrl(null)
+    setEmailSent(null)
     setLogs([])
     
     try {
@@ -57,9 +59,13 @@ export default function SendInvitePage() {
           // Kopiramo link u clipboard
           await navigator.clipboard.writeText(result.data.registration_url);
           addLog('Registration URL copied to clipboard');
+
+          // Beležimo da li je email uspešno poslat
+          setEmailSent(result.data.email_sent === true);
+          addLog(`Email sent: ${result.data.email_sent ? 'Yes' : 'No'}`);
         }
         
-        setMessage(result.message || 'Invitation sent successfully!');
+        setMessage(result.message || 'Invitation created successfully!');
       } else {
         throw new Error('Unknown error when sending invitation');
       }
@@ -133,7 +139,15 @@ export default function SendInvitePage() {
                 Copy
               </button>
             </div>
-            <p className="text-xs text-blue-200 mt-2">Link je već kopiran u clipboard.</p>
+            
+            <div className="mt-2 flex items-center">
+              <div className={`w-3 h-3 rounded-full mr-2 ${emailSent ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <p className="text-xs text-blue-200">
+                {emailSent 
+                  ? 'Email sa linkom je uspešno poslat korisniku.' 
+                  : 'Email nije poslat automatski. Molimo vas da ručno pošaljete link korisniku.'}
+              </p>
+            </div>
           </div>
         )}
         

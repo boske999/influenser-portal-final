@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
-import { createClient } from './supabase/server'
+import { createClient } from './supabase/client'
 
 export async function requireAuth() {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
   
   if (error || !user) {
@@ -15,7 +15,7 @@ export async function requireAuth() {
 export async function getUserData(userId: string) {
   if (!userId) return null
   
-  const supabase = await createClient()
+  const supabase = createClient()
   const { data, error } = await supabase.from('users').select('role, full_name, avatar_url').eq('id', userId).single()
   
   if (error) {
@@ -34,7 +34,7 @@ export async function getUserWithRole() {
 }
 
 export async function redirectBasedOnAuth() {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) {
@@ -45,4 +45,26 @@ export async function redirectBasedOnAuth() {
   const destination = userData?.role === 'admin' ? '/admin' : '/dashboard'
   
   redirect(destination)
+}
+
+export function handleSessionExpiration(error: any) {
+  // Check if the error is related to authentication/session
+  if (error?.message?.includes('JWT expired') || 
+      error?.message?.includes('Invalid JWT') ||
+      error?.message?.includes('not authenticated') ||
+      error?.code === 'PGRST301') {
+    
+    // Show a modal or notification to the user
+    const shouldRefresh = window.confirm(
+      'Your session has expired. Would you like to refresh the page to continue?'
+    );
+    
+    if (shouldRefresh) {
+      window.location.reload();
+    }
+    
+    return true;
+  }
+  
+  return false;
 } 

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/app/lib/supabase'
-import Image from 'next/image'
 
 export default function CompleteRegistrationPage() {
   const router = useRouter()
@@ -24,6 +23,7 @@ export default function CompleteRegistrationPage() {
         // Get token and email from URL
         const token = searchParams?.get('token');
         const queryEmail = searchParams?.get('email');
+        
         console.log('URL Parameters:', 
           'token:', token, 
           'email:', queryEmail
@@ -99,103 +99,38 @@ export default function CompleteRegistrationPage() {
     try {
       console.log('Completing registration for:', email);
       
-      // Najpre probajmo da se prijavimo sa tokenom kao lozinkom
-      try {
-        console.log('Attempting to sign in with token...');
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: queryEmail,
-          password: token,
-        });
-        
-        console.log('Sign in result:', signInData?.user?.id, signInError);
-        
-        if (!signInError && signInData.user) {
-          console.log('Successfully signed in with token');
-          
-          // Postavi novu lozinku
-          console.log('Setting new password...');
-          const { error: updateError } = await supabase.auth.updateUser({
-            password,
-          });
-          
-          if (updateError) {
-            console.error('Error updating password:', updateError);
-            throw updateError;
-          }
-        } else {
-          throw new Error('Could not authenticate with token');
-        }
-      } catch (signInError) {
-        console.log('Sign in with token failed, trying admin API...');
-        
-        // Koristimo direktan API pristup za ažuriranje korisnika sa admin pravima
-        console.log('Updating user with admin API...', queryEmail, token);
-        const response = await fetch(`/api/admin/create-user`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: queryEmail,
-            password: password,
-            fullName: fullName,
-            token: token
-          }),
-        });
-        
-        const result = await response.json();
-        console.log('Admin API result:', result);
-        
-        if (!response.ok) {
-          throw new Error(`Admin API error: ${result.error || 'Unknown error'}`);
-        }
-        
-        // Ako je korisnik uspešno ažuriran, pokušaj prijavu
-        console.log('User updated successfully, attempting to sign in with new credentials');
-        const { data: adminSignInData, error: adminSignInError } = await supabase.auth.signInWithPassword({
+      // Koristimo admin API za kreiranje korisnika i validaciju tokena
+      console.log('Using admin API to create user account');
+      const response = await fetch(`/api/admin/create-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           email: queryEmail,
           password: password,
-        });
-        
-        console.log('Sign in result:', adminSignInData?.user?.id, adminSignInError);
-        
-        if (adminSignInError) {
-          console.error('Error signing in with new credentials:', adminSignInError);
-          throw new Error('Failed to sign in with your new credentials. Please try logging in manually.');
-        }
+          fullName: fullName,
+          token: token
+        }),
+      });
+      
+      const result = await response.json();
+      console.log('Admin API result:', result);
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create user account');
       }
       
-      console.log('Continuing with profile update...');
+      // Pokušaj prijavu sa novim kredencijalima
+      console.log('Signing in with new credentials');
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: queryEmail,
+        password: password,
+      });
       
-      // Da li imamo aktivnu sesiju?
-      const { data } = await supabase.auth.getSession();
-      const session = data.session;
-      
-      // Dohvati trenutnog korisnika
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      const user = userData?.user;
-      
-      if (!user || !user.id) {
-        console.error('No active user after registration steps');
-        throw new Error('Failed to create a session. Please try logging in with your new account.');
-      }
-      
-      console.log('User session obtained:', user.id);
-      
-      // Kreiraj ili ažuriraj profil
-      console.log('Updating user profile');
-      const { error: upsertError } = await supabase
-        .from('users')
-        .upsert({ 
-          id: user.id, 
-          full_name: fullName, 
-          email: email,
-          updated_at: new Date().toISOString()
-        });
-        
-      if (upsertError) {
-        console.error('Error updating profile:', upsertError);
-        // Ne prekidamo proces zbog greške u profilu
+      if (signInError) {
+        console.error('Error signing in with new credentials:', signInError);
+        throw new Error('Failed to sign in with your new credentials. Please try logging in manually.');
       }
       
       console.log('Registration completed successfully!');
@@ -265,8 +200,10 @@ export default function CompleteRegistrationPage() {
               id="email"
               type="email"
               value={email}
-              disabled
-              className="w-full px-4 py-2 bg-inputBg border border-white/20 rounded-md text-textTertiary"
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={true}
+              className="w-full px-4 py-2 bg-inputBg border border-white/20 rounded-md text-textPrimary placeholder-textTertiary focus:outline-none focus:ring-2 focus:ring-[#FFB900] focus:border-transparent opacity-70"
+              required
             />
           </div>
           
@@ -294,7 +231,7 @@ export default function CompleteRegistrationPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
+              placeholder="Choose a password (min. 8 characters)"
               className="w-full px-4 py-2 bg-inputBg border border-white/20 rounded-md text-textPrimary placeholder-textTertiary focus:outline-none focus:ring-2 focus:ring-[#FFB900] focus:border-transparent"
               required
             />
@@ -322,7 +259,7 @@ export default function CompleteRegistrationPage() {
               isLoading ? 'opacity-70 cursor-not-allowed' : ''
             }`}
           >
-            {isLoading ? 'Completing Registration...' : 'Complete Registration'}
+            {isLoading ? 'Processing...' : 'Complete Registration'}
           </button>
         </form>
       </div>

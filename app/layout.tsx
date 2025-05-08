@@ -1,6 +1,7 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import AuthProviderClient from './components/AuthProviderClient'
+import DatePickerInitializer from './components/DatePickerInitializer'
 
 export const metadata: Metadata = {
   title: 'Allem - Advertising Platform',
@@ -18,6 +19,7 @@ export default function RootLayout({
         <AuthProviderClient>
           {children}
         </AuthProviderClient>
+        <DatePickerInitializer />
       </body>
     </html>
   )

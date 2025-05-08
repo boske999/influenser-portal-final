@@ -2,7 +2,9 @@
 CREATE TABLE chats (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     proposal_id UUID REFERENCES proposals(id) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    user_id UUID REFERENCES users(id) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(proposal_id, user_id)
 );
 
 -- Create chat_messages table
@@ -17,6 +19,7 @@ CREATE TABLE chat_messages (
 
 -- Create indexes for better performance
 CREATE INDEX idx_chats_proposal_id ON chats(proposal_id);
+CREATE INDEX idx_chats_user_id ON chats(user_id);
 CREATE INDEX idx_chat_messages_chat_id ON chat_messages(chat_id);
 CREATE INDEX idx_chat_messages_user_id ON chat_messages(user_id);
 CREATE INDEX idx_chat_messages_is_read ON chat_messages(is_read);
@@ -26,39 +29,40 @@ ALTER TABLE chats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 
 -- Create policy for chats
--- Users and admins can see chats related to proposals they're involved with
+-- Users can only see their own chats
 CREATE POLICY "Users can view their own chats" ON chats
 FOR SELECT
 USING (
+    user_id = auth.uid() OR
     proposal_id IN (
-        SELECT proposal_id FROM responses WHERE user_id = auth.uid()
-        UNION
         SELECT id FROM proposals WHERE created_by = auth.uid()
     )
 );
 
 -- Create policy for chat messages
--- Users can insert messages into chats they're part of
+-- Users can insert messages into their own chats
 CREATE POLICY "Users can insert messages into their chats" ON chat_messages
 FOR INSERT
 WITH CHECK (
     chat_id IN (
-        SELECT c.id FROM chats c
-        JOIN proposals p ON c.proposal_id = p.id
-        LEFT JOIN responses r ON p.id = r.proposal_id
-        WHERE r.user_id = auth.uid() OR p.created_by = auth.uid()
+        SELECT id FROM chats 
+        WHERE user_id = auth.uid() OR
+        proposal_id IN (
+            SELECT id FROM proposals WHERE created_by = auth.uid()
+        )
     )
 );
 
--- Users can view messages in chats they're part of
+-- Users can view messages in their own chats
 CREATE POLICY "Users can view messages in their chats" ON chat_messages
 FOR SELECT
 USING (
     chat_id IN (
-        SELECT c.id FROM chats c
-        JOIN proposals p ON c.proposal_id = p.id
-        LEFT JOIN responses r ON p.id = r.proposal_id
-        WHERE r.user_id = auth.uid() OR p.created_by = auth.uid()
+        SELECT id FROM chats 
+        WHERE user_id = auth.uid() OR
+        proposal_id IN (
+            SELECT id FROM proposals WHERE created_by = auth.uid()
+        )
     )
 );
 
@@ -66,10 +70,10 @@ USING (
 CREATE OR REPLACE FUNCTION create_chat_on_response()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Only create a chat if one doesn't already exist for this proposal
-    IF NOT EXISTS (SELECT 1 FROM chats WHERE proposal_id = NEW.proposal_id) THEN
-        INSERT INTO chats (proposal_id) VALUES (NEW.proposal_id);
-    END IF;
+    -- Create a new chat for this specific user and proposal
+    INSERT INTO chats (proposal_id, user_id)
+    VALUES (NEW.proposal_id, NEW.user_id)
+    ON CONFLICT (proposal_id, user_id) DO NOTHING;
     RETURN NEW;
 END;
 $$ language 'plpgsql';

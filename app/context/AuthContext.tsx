@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Session, User, signInUser, signOutUser, fetchUserData, supabase } from '../lib/supabase';
+import { handleSessionExpiration } from '../utils/auth';
 
 // User data from the users table
 type UserData = {
@@ -63,6 +64,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (error) {
         console.error("Error getting session:", error.message);
+        if (handleSessionExpiration(error)) {
+          return;
+        }
         setIsLoading(false);
         return;
       }
@@ -92,12 +96,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUserData(userData as UserData | null);
       } catch (userDataError) {
         console.error("Error fetching user data:", userDataError);
+        if (handleSessionExpiration(userDataError)) {
+          return;
+        }
         // Continue even if user data fetch fails - just set userData to null
         setUserData(null);
       }
       
     } catch (error) {
       console.error("Error initializing authentication:", error);
+      if (handleSessionExpiration(error)) {
+        return;
+      }
     } finally {
       setIsLoading(false);
     }

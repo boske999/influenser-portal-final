@@ -8,6 +8,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import ConfirmationModal from '../../../components/ConfirmationModal'
 import DeclineModal from '../../../components/DeclineModal'
+import { showToast } from '../../../components/ToastProvider'
 
 type Proposal = {
   id: string
@@ -195,12 +196,12 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
       // Close the modal
       setShowDeclineModal(false)
       
-      // Show success message (could be improved with a toast notification)
-      alert('You have successfully declined this offer')
+      // Show success toast notification instead of alert
+      showToast.success('Offer declined', 'You have successfully declined this offer')
       
     } catch (error: any) {
       console.error('Error declining offer:', error.message)
-      alert('Failed to decline offer. Please try again.')
+      showToast.error('Error', 'Failed to decline offer. Please try again.')
     } finally {
       setSubmitting(false)
     }

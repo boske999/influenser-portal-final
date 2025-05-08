@@ -1,4 +1,5 @@
 import { createClient, type User, type Session } from '@supabase/supabase-js';
+import { handleSessionExpiration } from '../utils/auth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://fbmdbvijfufsjpsuorxi.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -63,12 +64,18 @@ export async function fetchUserData(userId: string) {
       
     if (error) {
       console.error('Error fetching user data:', error);
+      if (handleSessionExpiration(error)) {
+        return null;
+      }
       return null;
     }
     
     return data;
   } catch (err) {
     console.error('Exception fetching user data:', err);
+    if (handleSessionExpiration(err)) {
+      return null;
+    }
     return null;
   }
 }
