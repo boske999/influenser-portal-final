@@ -11,8 +11,22 @@ export default function ErrorBoundary({
 }) {
   const [hasError, setHasError] = useState(false);
   const [errorInfo, setErrorInfo] = useState<string>('');
-  const { refreshAndReload, signOut, isAuthenticated } = useAuth();
+  const { signOut, isAuthenticated, refreshUserData } = useAuth();
   const autoRedirectTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Funkcija za automatsko preusmeravanje nakon 30 sekundi
+  const startAutoRedirectTimer = () => {
+    // Očistiti postojeći tajmer ako postoji
+    if (autoRedirectTimerRef.current) {
+      clearTimeout(autoRedirectTimerRef.current);
+    }
+    
+    // Postaviti novi tajmer
+    autoRedirectTimerRef.current = setTimeout(() => {
+      console.log("Auto redirect timer triggered, signing out");
+      signOut();
+    }, 30000); // 30 sekundi
+  };
 
   useEffect(() => {
     // Handler za neuhvaćena obećanja
@@ -57,20 +71,6 @@ export default function ErrorBoundary({
       }
     };
 
-    // Funkcija za automatsko preusmeravanje nakon 30 sekundi
-    const startAutoRedirectTimer = () => {
-      // Očistiti postojeći tajmer ako postoji
-      if (autoRedirectTimerRef.current) {
-        clearTimeout(autoRedirectTimerRef.current);
-      }
-      
-      // Postaviti novi tajmer
-      autoRedirectTimerRef.current = setTimeout(() => {
-        console.log("Auto redirect timer triggered, signing out");
-        signOut();
-      }, 30000); // 30 sekundi
-    };
-
     // Dodati osluškivače događaja
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
     window.addEventListener('error', handleError);
@@ -95,7 +95,17 @@ export default function ErrorBoundary({
       autoRedirectTimerRef.current = null;
     }
     
-    await refreshAndReload();
+    // Pokušaj da osvežiš sesiju
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      // Ako je sesija osvežena, osveži i korisničke podatke
+      await refreshUserData();
+      window.location.reload(); // Osvežavanje stranice
+    } else {
+      // Ako nije uspelo osvežavanje, prikaži grešku
+      setErrorInfo('Nije uspelo osvežavanje sesije. Pokušajte da se ponovo prijavite.');
+      startAutoRedirectTimer();
+    }
   };
 
   // Handler za odjavu
